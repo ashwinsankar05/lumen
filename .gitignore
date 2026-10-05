@@ -1,0 +1,13 @@
+# Recordings, keys and calibrated thresholds stay local (PROJECT.md §7)
+data/
+
+# Experiment outputs are regenerated from data/; commit a result only when RESULTS.md cites it
+experiments/*/results/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
