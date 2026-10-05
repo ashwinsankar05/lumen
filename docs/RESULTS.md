@@ -165,6 +165,23 @@ probe (neck 0.094, at the noise floor vs 0.87–0.90 genuine), which the SNR gat
 replay rather than an abstain. One replay of one recording: the replay rule's threshold
 (face–neck ≥ 0.5) has a wide margin here, but it is still a provisional default, not calibrated.
 
+## 2026-10-05 — Call-mode output: colour through the OBS virtual camera (no subject)
+
+OBS Studio 32.2.2 installed; LUMEN's `VirtualCamDisplay` (pyvirtualcam, 1280x720, 30 fps) fed a
+static split field and the virtual camera was read back as a consumer would (`camera:1`, DSHOW,
+640x480).
+
+| Half | Sent RGB | Received RGB | Lab error (L*, a*, b*) |
+|---|---|---|---|
+| left | 184, 158, 168 | 184.1, 159.2, 168.1 | +0.32, −0.46, +0.58 |
+| right | 158, 178, 168 | 158.1, 180.2, 168.1 | +0.46, −0.93, +0.78 |
+
+Reading: both halves arrive on the correct side (the virtual camera does not mirror) with a
+constant offset under 1 Lab unit (green +1–2 code values, from the colour-format conversion). A
+constant offset does not affect the probe measurement, which uses the modulation. Static colours
+only: whether a call app's codec passes the 2–8 Hz modulation is the open question for the call
+sessions.
+
 ## 2026-10-05 — M1 lamp test L1 (genuine subject, light on the face from the front)
 
 Same place and settings; a phone torch held in front of the subject, slightly above eye level,
