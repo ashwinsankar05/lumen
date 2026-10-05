@@ -67,6 +67,9 @@ call path it will judge.
 
 ## Through a real call (after the local sessions)
 
+The live face-swap session is run this way, with the attacker on a second laptop; full setup in
+`docs/SWAP_SETUP.md`.
+
 Repeat one G–S–G sandwich with the probe carried by a call: verifier laptop with
 `--emit virtualcam` (OBS Virtual Camera selected in Meet/Zoom), subject on a second device with
 the verifier's video full screen, source from `python -m lumen pick-region`. Write down the call
