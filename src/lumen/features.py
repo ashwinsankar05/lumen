@@ -99,8 +99,10 @@ class Features:
     spatial_cv: float | None = None
     # Split probe only: per region, (left gain - right gain) / (left + right).
     lateral: dict[str, float] = field(default_factory=dict)
-    # L3: lateral index of the image-right cheek minus the image-left cheek (None if single).
+    # L3: lateral index of the image-right cheek minus the image-left cheek (None if single),
+    # and its within-session jackknife standard error.
     cheek_contrast: float | None = None
+    cheek_contrast_se: float | None = None
     # Mean L* of the face / mean L* of the neck. A lamp near the subject lights the face more
     # than in any genuine calibration session; decide.py abstains on it.
     face_neck_lightness: float | None = None
@@ -124,8 +126,33 @@ def band_mean(f: np.ndarray, values: np.ndarray, band_hz: tuple[float, float] = 
     return values[mask].mean(axis=0)
 
 
-def spectrum(probe, region, fs: float, nperseg: int, detrend: str = "linear") -> Spectrum:
-    """Coherence, gain and transfer of one region against the probe, from aligned uniform series.
+@dataclass(frozen=True)
+class SegmentSpectra:
+    """Per-segment cross-spectra (Hann window, linear detrend, 50% overlap), one row per segment.
+
+    Their mean over segments is the Welch estimate; keeping them separate lets a jackknife leave
+    out a block of segments without re-analysing anything. Scaling constants are omitted: every
+    quantity derived from them (coherence, transfer, gain) is a ratio in which they cancel.
+    """
+
+    f: np.ndarray    # (F,) Hz
+    Spp: np.ndarray  # (K, F, p, p)  P P^H
+    Srp: np.ndarray  # (K, F, C, p)  R P^H
+    Srr: np.ndarray  # (K, F, C)     |R|^2
+
+    @property
+    def n_segments(self) -> int:
+        return self.Spp.shape[0]
+
+    def spectrum(self, keep: np.ndarray | None = None) -> Spectrum:
+        """Welch estimate over all segments, or only those where `keep` (bool, (K,)) is True."""
+        k = slice(None) if keep is None else keep
+        return _spectrum(self.f, self.Spp[k].sum(axis=0), self.Srp[k].sum(axis=0), self.Srr[k].sum(axis=0),
+                         n_segments=self.n_segments if keep is None else int(np.sum(keep)))
+
+
+def segment_spectra(probe, region, fs: float, nperseg: int) -> SegmentSpectra:
+    """Per-segment spectra of the probe and one region, from aligned uniform series.
 
     probe: (N,) or (N, p). region: (N,) or (N, C). Both sampled at fs on the same grid.
     """
@@ -134,32 +161,54 @@ def spectrum(probe, region, fs: float, nperseg: int, detrend: str = "linear") ->
         raise ValueError("probe and region series differ in length")
     if len(P) < nperseg:
         raise ValueError(f"series of {len(P)} samples is shorter than one segment ({nperseg})")
-    noverlap = nperseg // 2
-    kw = dict(fs=fs, window="hann", nperseg=nperseg, noverlap=noverlap, detrend=detrend, axis=-1)
+    step = nperseg - nperseg // 2
+    idx = np.arange(0, len(P) - nperseg + 1, step)[:, None] + np.arange(nperseg)  # (K, nperseg)
+    window = signal.get_window("hann", nperseg)[None, :, None]
+    X = np.fft.rfft(signal.detrend(P[idx], axis=1, type="linear") * window, axis=1)  # (K, F, p)
+    Y = np.fft.rfft(signal.detrend(R[idx], axis=1, type="linear") * window, axis=1)  # (K, F, C)
+    return SegmentSpectra(
+        f=np.fft.rfftfreq(nperseg, 1 / fs),
+        Spp=X[..., :, None] * X.conj()[..., None, :],
+        Srp=Y[..., :, None] * X.conj()[..., None, :],
+        Srr=np.abs(Y) ** 2,
+    )
 
-    # scipy's csd(x, y) is E[conj(X) Y]; broadcasting gives every channel pair at once.
-    f, Spp = signal.csd(P.T[:, None, :], P.T[None, :, :], **kw)  # (p, p, F)
-    _, Spr = signal.csd(P.T[:, None, :], R.T[None, :, :], **kw)  # (p, C, F)
-    _, Srr = signal.welch(R.T, **kw)                             # (C, F)
 
-    # Standard orientation: Gpp = E[P P^H], Grp = E[R P^H], both per frequency.
-    Gpp = np.moveaxis(Spp, -1, 0).transpose(0, 2, 1)  # (F, p, p)
-    Grp = np.moveaxis(Spr, -1, 0).transpose(0, 2, 1)  # (F, C, p)
-    Grr = Srr.T                                       # (F, C)
-
-    # H = Grp Gpp^-1, solved as Gpp^T H^T = Grp^T.
+def _spectrum(f, Gpp, Grp, Grr, *, n_segments: int) -> Spectrum:
+    # Y = H X + N  =>  E[Y X^H] = H E[X X^H], so H = Grp Gpp^-1, solved as Gpp^T H^T = Grp^T.
     H = np.linalg.solve(Gpp.transpose(0, 2, 1), Grp.transpose(0, 2, 1)).transpose(0, 2, 1)
     explained = np.einsum("fcp,fcp->fc", H, Grp.conj()).real  # diag(H Grp^H): probe-explained power
-
     return Spectrum(
         f=f,
         coherence=explained / Grr,
         combined=explained.sum(axis=1) / Grr.sum(axis=1),
         gain=np.linalg.norm(H, axis=(1, 2)),
         transfer=H,
-        n_segments=(len(P) - noverlap) // (nperseg - noverlap),
-        n_inputs=P.shape[1],
+        n_segments=n_segments,
+        n_inputs=Gpp.shape[-1],
     )
+
+
+def spectrum(probe, region, fs: float, nperseg: int) -> Spectrum:
+    """Coherence, gain and transfer of one region against the probe (Welch, all segments)."""
+    return segment_spectra(probe, region, fs, nperseg).spectrum()
+
+
+def jackknife_blocks(n_segments: int, n_blocks: int) -> list[np.ndarray]:
+    """Boolean keep-masks, each leaving out one block of consecutive segments."""
+    edges = np.linspace(0, n_segments, n_blocks + 1).round().astype(int)
+    masks = []
+    for lo, hi in zip(edges[:-1], edges[1:]):
+        keep = np.ones(n_segments, bool)
+        keep[lo:hi] = False
+        masks.append(keep)
+    return masks
+
+
+def jackknife_se(values: list[float]) -> float:
+    """Delete-one-group jackknife standard error from the leave-one-out estimates."""
+    v = np.asarray(values, dtype=float)
+    return float(np.sqrt((len(v) - 1) / len(v) * np.sum((v - v.mean()) ** 2)))
 
 
 def region_response(spec: Spectrum, band_hz: tuple[float, float] = PROBE_BAND_HZ) -> RegionResponse:
@@ -273,6 +322,7 @@ def analyse(
     band_hz: tuple[float, float] = PROBE_BAND_HZ,
     max_lag_s: float = 1.0,
     face_neck_lightness: float | None = None,
+    jackknife_n_blocks: int = 6,
 ) -> Features:
     """L1, L2 and L3 from one capture. regions: name -> (timestamps, chroma (N, C)).
 
@@ -286,7 +336,8 @@ def analyse(
             raise ValueError(f"region {required!r} is required")
     nperseg = int(round(segment_s * fs))
     a = align(probe_t, probe_chroma, regions, fs=fs, max_lag_s=max_lag_s)
-    specs = {name: spectrum(a.probe, x, fs, nperseg) for name, x in a.regions.items()}
+    segs = {name: segment_spectra(a.probe, x, fs, nperseg) for name, x in a.regions.items()}
+    specs = {name: s.spectrum() for name, s in segs.items()}
     resp = {name: region_response(s, band_hz) for name, s in specs.items()}
     face, neck = resp["face"], resp["neck"]
 
@@ -317,6 +368,10 @@ def analyse(
         cv = float(np.std(list(spatial.values())))
 
     lateral = {name: li for name, s in specs.items() if (li := lateral_index(s, band_hz)) is not None}
+    contrast = cheek_contrast(lateral)
+    contrast_se = None
+    if contrast is not None:
+        contrast_se = cheek_contrast_se({c: segs[c] for c in CHEEKS}, band_hz, n_blocks=jackknife_n_blocks)
 
     return Features(
         measurement=m,
@@ -325,9 +380,27 @@ def analyse(
         spatial_field=spatial,
         spatial_cv=cv,
         lateral=lateral,
-        cheek_contrast=cheek_contrast(lateral),
+        cheek_contrast=contrast,
+        cheek_contrast_se=contrast_se,
         face_neck_lightness=face_neck_lightness,
     )
+
+
+def cheek_contrast_se(cheeks: Mapping[str, SegmentSpectra], band_hz: tuple[float, float] = PROBE_BAND_HZ,
+                      *, n_blocks: int = 6) -> float | None:
+    """Jackknife standard error of the cheek contrast, leaving out one block of segments at a time.
+
+    It measures within-session noise only: drift between sessions (pose, light) is not in it, which
+    is why M1 records genuine sessions on both sides of every attack session.
+    """
+    k = next(iter(cheeks.values())).n_segments
+    if k < 2 * n_blocks:
+        return None
+    values = []
+    for keep in jackknife_blocks(k, n_blocks):
+        lat = {name: lateral_index(s.spectrum(keep), band_hz) for name, s in cheeks.items()}
+        values.append(cheek_contrast(lat))
+    return jackknife_se(values)
 
 
 def measure(probe_t, probe_chroma, face_t, face_chroma, neck_t, neck_chroma, **kwargs) -> Measurement:

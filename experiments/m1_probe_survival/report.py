@@ -60,6 +60,7 @@ def rows_for(records: dict[str, dict], genuine: list[str]) -> list[dict]:
             "K": m and m.n_segments,
             "gain": m and round(m.differential_gain, 3),
             "cheek_contrast": None if f is None or f.cheek_contrast is None else round(f.cheek_contrast, 3),
+            "cheek_contrast_se": None if f is None or f.cheek_contrast_se is None else round(f.cheek_contrast_se, 3),
             "lag_ms": m and round(1000 * m.lag_s),
             "decision": v.decision,
             "reason": v.reason,
@@ -68,8 +69,16 @@ def rows_for(records: dict[str, dict], genuine: list[str]) -> list[dict]:
     return rows
 
 
+def contrast(row: dict) -> str:
+    """Cheek contrast with its within-session jackknife SE, e.g. '+0.452 ± 0.031'."""
+    if row["cheek_contrast"] is None:
+        return "–"
+    se = "" if row["cheek_contrast_se"] is None else f" ± {row['cheek_contrast_se']:.3f}"
+    return f"{row['cheek_contrast']:+.3f}{se}"
+
+
 def markdown(rows: list[dict]) -> str:
-    head = ("| Session | Label | Probe | Face coh. | Neck coh. | Floor (K) | Gain | Cheek contrast | Lag | "
+    head = ("| Session | Label | Probe | Face coh. | Neck coh. | Floor (K) | Gain | Cheek contrast ± SE | Lag | "
             "Verdict | Thresholds |\n|---|---|---|---|---|---|---|---|---|---|---|\n")
     fmt = lambda v: "–" if v is None else v  # noqa: E731
     lines = []
@@ -77,7 +86,7 @@ def markdown(rows: list[dict]) -> str:
         label = r["label"] + (" (SIMULATED)" if r["simulated"] else "") + (" [genuine]" if r["genuine"] else "")
         lines.append(f"| `{r['session']}` | {label} | {r['layout']} | {fmt(r['face_coherence'])} | "
                      f"{fmt(r['neck_coherence'])} | {fmt(r['noise_floor'])} ({fmt(r['K'])}) | {fmt(r['gain'])} | "
-                     f"{fmt(r['cheek_contrast'])} | {fmt(r['lag_ms'])} ms | {r['decision']} | {r['thresholds']} |")
+                     f"{contrast(r)} | {fmt(r['lag_ms'])} ms | {r['decision']} | {r['thresholds']} |")
     return head + "\n".join(lines) + "\n"
 
 

@@ -264,6 +264,39 @@ def test_analyse_split_session_reports_cheek_contrast_and_floor():
     assert set(f.spatial_field) == {"cheek_r", "cheek_l"}
 
 
+def test_jackknife_se_matches_the_spread_over_repeated_sessions():
+    """The reported SE must describe the real scatter of the cheek contrast, not just exist."""
+    fs, n = FS, int(40 * FS)
+    p = Probe("jackknife", duration_s=41.0, amplitude=16.0).chroma_at(np.arange(n) / fs)
+    t = np.arange(n) / fs
+    weights = {"face.cheek_r": (0.65, 0.35), "face.cheek_l": (0.35, 0.65)}
+    contrasts, ses = [], []
+    for seed in range(40):
+        rng = np.random.default_rng(100 + seed)
+        regions = {"face": (t, 0.05 * p[:, :2] + rng.standard_normal((n, 2))),
+                   "neck": (t, 0.05 * p[:, :2] + rng.standard_normal((n, 2)))}
+        for name, (wl, wr) in weights.items():
+            regions[name] = (t, 0.05 * (wl * p[:, :2] + wr * p[:, 2:]) @ rotation(0.4).T
+                             + 0.6 * rng.standard_normal((n, 2)))
+        f = analyse(t, p, regions, fs=fs, max_lag_s=0.0)
+        contrasts.append(f.cheek_contrast)
+        ses.append(f.cheek_contrast_se)
+    ratio = np.mean(ses) / np.std(contrasts, ddof=1)
+    assert 0.6 < ratio < 1.6, ratio
+
+
+def test_spectrum_from_segments_supports_leaving_segments_out():
+    rng = np.random.default_rng(9)
+    x = rng.standard_normal((1800, 2))
+    from lumen.features import jackknife_blocks, segment_spectra
+
+    segs = segment_spectra(x, 0.5 * x + rng.standard_normal((1800, 2)), FS, NPERSEG)
+    masks = jackknife_blocks(segs.n_segments, 6)
+    assert len(masks) == 6 and all(m.sum() < segs.n_segments for m in masks)
+    assert sum((~m).sum() for m in masks) == segs.n_segments  # every segment left out exactly once
+    assert segs.spectrum(masks[0]).n_segments == masks[0].sum()
+
+
 def test_analyse_requires_face_and_neck():
     with pytest.raises(ValueError, match="neck"):
         analyse([0, 1], [[0, 0], [1, 1]], {"face": ([0, 1], [[0, 0], [1, 1]])})

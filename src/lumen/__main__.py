@@ -57,6 +57,10 @@ def _print_result(r) -> None:
         m = r.features.measurement
         print(f"\n  band {m.band_hz[0]:g}-{m.band_hz[1]:g} Hz, K = {m.n_segments} Welch segments, "
               f"noise floor {m.noise_floor:.3f}, lag {m.lag_s:.3f} s, analysed {m.duration_s:.1f} s")
+        if r.features.cheek_contrast is not None:
+            se = r.features.cheek_contrast_se
+            print(f"  cheek contrast {r.features.cheek_contrast:+.3f}"
+                  + ("" if se is None else f" ± {se:.3f} (jackknife SE, within session)"))
     print(f"  capture: {r.capture.get('source')}  {r.capture_fps:.1f} fps measured, {r.frames_dropped} dropped, "
           f"processing {r.processing_ms:.1f} ms/frame, face in {r.face_fraction:.0%} of frames")
     if r.capture.get("simulated"):
