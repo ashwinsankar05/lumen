@@ -164,3 +164,19 @@ Reading: the recorded face and neck still follow each other (0.867, as in G1) bu
 probe (neck 0.094, at the noise floor vs 0.87–0.90 genuine), which the SNR gate classifies as a
 replay rather than an abstain. One replay of one recording: the replay rule's threshold
 (face–neck ≥ 0.5) has a wide margin here, but it is still a provisional default, not calibrated.
+
+## 2026-10-05 — M1 lamp test L1 (genuine subject, light on the face from the front)
+
+Same place and settings; a phone torch held in front of the subject, slightly above eye level,
+~30–50 cm away (as instructed; not measured), aimed at the face. Calibrated thresholds (G1–G3).
+Session `20261005-181600-L1-lamp-front-3020`, whole 60 s, no gaps.
+
+| Face coh. / neck coh. / floor | Ratio (L1 ≥ 0.774) | Gain (L2 0.340–0.711); background | Cheek contrast (L3 ≥ 0.500) | Face/neck lightness (≤ 0.997) | Verdict |
+|---|---|---|---|---|---|
+| 0.396 / 0.619 / 0.069 | **0.641** | 0.348; 0.355 | **+0.244 ± 0.124** | **1.083** | **abstain** (lamp gate) |
+
+Reading: the torch diluted the probe on the face (face coherence 0.40 vs 0.86–0.88 genuine) and
+flattened the cheek lean. L1 and L3 would both have **falsely rejected this genuine subject**;
+the lamp gate (face lit more strongly relative to the neck than in any calibration session)
+abstained first, as designed. One lamp position: a side lamp (L2) is the harder case still to
+measure.
