@@ -203,9 +203,16 @@ class CameraSource:
 
 
 class VideoFileSource:
-    """A recording delivered at its own frame rate, like a virtual camera playing it."""
+    """A recording delivered in real time, like a virtual camera playing it.
+
+    If `video_timestamps.csv` sits next to the video (sessions saved with --save-video write it),
+    frames are released at their originally captured intervals: a webcam that delivered 20 fps
+    is replayed at 20 fps even though the container is stamped 30. Otherwise the container's fps
+    is used.
+    """
 
     def __init__(self, path: str | Path, paced: bool = True):
+        path = Path(path)
         self.cap = cv2.VideoCapture(str(path))
         if not self.cap.isOpened():
             raise RuntimeError(f"cannot open video {path}")
@@ -213,13 +220,26 @@ class VideoFileSource:
         self.paced = paced
         self._start: float | None = None
         self._n = 0
+        self._offsets: np.ndarray | None = None
+        notes = ["recorded video: exposure and white balance are whatever the recording had"]
+        stamps = path.with_name("video_timestamps.csv")
+        if stamps.exists():
+            t = np.loadtxt(stamps, delimiter=",", ndmin=1)
+            if len(t) > 1 and np.all(np.diff(t) > 0):
+                self._offsets = t - t[0]
+                self.fps = (len(t) - 1) / (t[-1] - t[0])
+                notes.append(f"replayed at the recorded frame times ({self.fps:.1f} fps)")
         self.report = CaptureReport(
             source=f"file:{path}",
             width=int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
             height=int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
-            fps_requested=self.fps, fps_reported=self.fps,
-            notes=["recorded video: exposure and white balance are whatever the recording had"],
+            fps_requested=self.fps, fps_reported=self.fps, notes=notes,
         )
+
+    def _due(self, n: int) -> float:
+        if self._offsets is not None and n < len(self._offsets):
+            return float(self._offsets[n])
+        return n / self.fps
 
     def read(self) -> np.ndarray | None:
         ok, img = self.cap.read()
@@ -228,7 +248,7 @@ class VideoFileSource:
         if self.paced:
             if self._start is None:
                 self._start = clock()
-            delay = self._start + self._n / self.fps - clock()
+            delay = self._start + self._due(self._n) - clock()
             if delay > 0:
                 time.sleep(delay)
         self._n += 1

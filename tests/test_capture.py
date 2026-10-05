@@ -141,6 +141,26 @@ def test_auto_exposure_is_restored_from_a_short_exposure():
                              (cv2.CAP_PROP_AUTO_EXPOSURE, CameraSource.AUTO_ON)]
 
 
+def test_video_with_saved_timestamps_replays_at_the_recorded_rate(tmp_path):
+    """Measured case: a 20 fps webcam saved into a container stamped 30 fps must replay at 20."""
+    path = tmp_path / "video.avi"
+    w = cv2.VideoWriter(str(path), cv2.VideoWriter_fourcc(*"MJPG"), 30.0, (32, 24))
+    for f in range(9):
+        w.write(np.full((24, 32, 3), f * 20, np.uint8))
+    w.release()
+    (tmp_path / "video_timestamps.csv").write_text("\n".join(repr(100.0 + i / 20) for i in range(9)))
+
+    src = VideoFileSource(path)
+    assert src.fps == pytest.approx(20.0)
+    start = time.perf_counter()
+    with pytest.raises(EOFError):
+        while True:
+            src.read()
+    assert time.perf_counter() - start >= 8 / 20 - 0.02  # 0.4 s, not the 0.27 s a 30 fps replay takes
+    assert any("recorded frame times" in n for n in src.report.notes)
+    src.close()
+
+
 def test_unknown_source_is_refused():
     with pytest.raises(ValueError, match="unknown source"):
         open_source("webcam:0")
