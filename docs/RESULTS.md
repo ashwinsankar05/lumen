@@ -125,3 +125,26 @@ Same place, hardware and settings as G1, a few minutes later. Session `20261005-
 Reading: G1 and G2 agree (cheek contrast 0.589 vs 0.573, within one SE of each other; face and
 neck coherence 0.86–0.90). Same subject, same pose, same room, minutes apart: repeatability
 within one sitting, not across subjects or rooms.
+
+## 2026-10-05 — M1 genuine session G3, and the first calibration
+
+G3: same place and settings, session `20261005-175335-G3-5210` (video saved), whole 60 s, no gaps.
+
+M1 report (`experiments/m1_probe_survival/report.py --genuine G1 G2 G3`), each genuine session
+judged by thresholds calibrated from the other two (leave-one-out):
+
+| Session | Face coh. | Neck coh. | Floor (K) | Gain | Cheek contrast ± SE | Lag | Verdict (leave-one-out) |
+|---|---|---|---|---|---|---|---|
+| G1 | 0.864 | 0.866 | 0.074 (54) | 0.486 | +0.589 ± 0.029 | 133 ms | verify |
+| G2 | 0.870 | 0.899 | 0.069 (58) | 0.508 | +0.573 ± 0.036 | 100 ms | verify |
+| G3 | 0.876 | 0.893 | 0.069 (58) | 0.502 | +0.544 ± 0.027 | 100 ms | verify |
+
+Calibration from all three (`data/thresholds.json`): cheek contrast ≥ 0.5003 (mean − 3 sd),
+face/neck coherence ratio ≥ 0.774, gain in [0.340, 0.711], background/neck ≤ 0.30, |yaw| ≤ 0.088,
+face/neck lightness ≤ 0.997, mirror sign +1.
+
+Limits: three sessions of one subject in one sitting; an sd from n = 3 is rough, and with two
+sessions the leave-one-out thresholds fall back to 0.8 x the minimum. The calibrated L3 bound
+(0.50) sits only ~0.04 below the lowest genuine value, so more genuine sessions (other subjects,
+small head movements) are needed before treating its false-reject rate as known. No attack has
+been measured yet.
