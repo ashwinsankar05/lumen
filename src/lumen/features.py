@@ -80,6 +80,7 @@ class Measurement:
     n_segments: int
     noise_floor: float
     max_gap_s: float          # largest gap between timestamps in any input; gaps are interpolated over
+    capture_fps: float = 30.0  # achieved frame rate of the face series (median frame interval)
 
 
 @dataclass(frozen=True)
@@ -354,6 +355,7 @@ def analyse(
         n_segments=specs["face"].n_segments,
         noise_floor=specs["face"].noise_floor,
         max_gap_s=gap,
+        capture_fps=float(1.0 / np.median(np.diff(np.asarray(regions["face"][0], dtype=float)))),
     )
 
     face_neck = region_response(spectrum(a.regions["neck"], a.regions["face"], fs, nperseg), band_hz)

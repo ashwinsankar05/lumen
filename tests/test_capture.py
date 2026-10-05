@@ -109,6 +109,38 @@ def test_video_file_source_plays_in_real_time(tmp_path):
     src.close()
 
 
+def test_exposure_search_never_exceeds_one_frame_period():
+    from lumen.capture import exposure_steps_for
+
+    assert exposure_steps_for(30.0) == -5  # 31 ms fits in 33 ms; -4 (62 ms) would halve the rate
+    assert exposure_steps_for(15.0) == -4
+
+
+def test_auto_exposure_is_restored_from_a_short_exposure():
+    """Regression: the dev laptop's driver kept a 125 ms trial exposure even back on auto (10 fps)."""
+    import cv2
+
+    from lumen.capture import CameraSource
+
+    class FakeCap:
+        def __init__(self):
+            self.calls = []
+
+        def set(self, prop, value):
+            self.calls.append((prop, value))
+
+        def release(self):
+            pass
+
+    cam = object.__new__(CameraSource)
+    cam.cap, cam.exposures = FakeCap(), list(range(-9, -4))
+    cam._restore_exposure, cam._restore_wb = True, False
+    cam.close()
+    assert cam.cap.calls == [(cv2.CAP_PROP_AUTO_EXPOSURE, CameraSource.AUTO_OFF),
+                             (cv2.CAP_PROP_EXPOSURE, -5),
+                             (cv2.CAP_PROP_AUTO_EXPOSURE, CameraSource.AUTO_ON)]
+
+
 def test_unknown_source_is_refused():
     with pytest.raises(ValueError, match="unknown source"):
         open_source("webcam:0")

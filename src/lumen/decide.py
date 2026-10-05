@@ -127,14 +127,21 @@ def decide(
     if features is None:
         return done("abstain", "not enough data to measure")
     m = features.measurement
+    # Nyquist: below 2 x the top probe frequency the camera cannot sample the flicker at all.
+    min_fps = 2.0 * m.band_hz[1]
     quality = [
+        Check("capture_fps", m.capture_fps, f">= {min_fps:g} (2 x top probe frequency)", m.capture_fps >= min_fps),
         Check("duration_s", m.duration_s, f">= {th.min_duration_s}", m.duration_s >= th.min_duration_s),
         Check("max_gap_s", m.max_gap_s, f"<= {th.max_gap_s}", m.max_gap_s <= th.max_gap_s),
         Check("face_fraction", face_fraction, f">= {th.min_face_fraction}", face_fraction >= th.min_face_fraction),
     ]
     checks += quality
     if failed := [c.name for c in quality if not c.passed]:
-        return done("abstain", "data quality too low: " + ", ".join(failed))
+        reason = "data quality too low: " + ", ".join(failed)
+        if "capture_fps" in failed:
+            reason += (f" (camera delivered {m.capture_fps:.1f} fps; in dim light webcams lengthen exposure "
+                       "and slow down, so add light or raise screen brightness)")
+        return done("abstain", reason)
 
     # 2. head pose
     if pose is not None and th.max_abs_yaw is not None:

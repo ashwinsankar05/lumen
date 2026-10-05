@@ -43,8 +43,8 @@ class SessionConfig:
     source: str = "camera:0"
     layout: str = "split"
     duration_s: float = 45.0
-    warmup_s: float = 6.0
-    lock_at_s: float = 1.5         # into the warm-up
+    warmup_s: float = 8.0         # the camera lock must finish inside it (~3 s)
+    lock_at_s: float = 0.5         # into the warm-up
     amplitude: float = 24.0
     lightness: float = 70.0
     fullscreen: bool = True

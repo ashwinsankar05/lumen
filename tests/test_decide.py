@@ -88,6 +88,14 @@ def test_abstain_gates(kwargs, extra, needle):
     assert needle in v.reason
 
 
+def test_slow_camera_abstains_and_says_why():
+    """Measured on the dev laptop: a dim room drove the webcam to ~10 fps, below Nyquist for 8 Hz."""
+    f = features()
+    f = replace(f, measurement=replace(f.measurement, capture_fps=10.0))
+    v = decide(f, CALIBRATED)
+    assert v.decision == "abstain" and "capture_fps" in v.reason and "light" in v.reason
+
+
 def test_no_features_abstains():
     assert decide(None).decision == "abstain"
 

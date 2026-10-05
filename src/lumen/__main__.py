@@ -66,7 +66,7 @@ def _print_result(r) -> None:
         if r.features.cheek_contrast is not None:
             se = r.features.cheek_contrast_se
             print(f"  cheek contrast {r.features.cheek_contrast:+.3f}"
-                  + ("" if se is None else f" ± {se:.3f} (jackknife SE, within session)"))
+                  + ("" if se is None else f" +/- {se:.3f} (jackknife SE, within session)"))
     print(f"  capture: {r.capture.get('source')}  {r.capture_fps:.1f} fps measured, {r.frames_dropped} dropped, "
           f"processing {r.processing_ms:.1f} ms/frame, face in {r.face_fraction:.0%} of frames")
     if r.capture.get("simulated"):

@@ -24,4 +24,35 @@ Reading: <what the numbers do and do not show; limits>
 
 ---
 
-*No measurements yet (project started 2026-10-05). First: Milestone 1, `docs/PROTOCOL.md`.*
+## 2026-10-05 — First webcam smoke test (not M1)
+
+- Hardware: development laptop, built-in webcam `camera:0` (DirectShow, 640x480 requested at
+  30 fps). Probe in a **1280x720 window, not full screen** (`--windowed`), split layout,
+  amplitude 24, 20 s after a 6 s warm-up.
+- Conditions **not recorded**: room light, distance, display brightness.
+- Session: `20261005-173334-smoke-23f7`.
+
+| Measured | Value |
+|---|---|
+| Camera frame rate | **10.0 fps** (requested 30) |
+| Face + neck found | 100% of probe-period frames |
+| Processing | 5.0 ms/frame |
+| Probe frames shown | 1185 in 20 s (59 fps) |
+| Usable probe time | 13.9 s (camera lock ran until 5.9 s into the probe) |
+| Exposure / WB locked | no (closest manual exposure 44.5 L* too dark) / yes (2800 K) |
+| Face coh. / neck coh. / floor (K) | not interpretable: lag at the 1 s search limit, K = 12 |
+| Cheek contrast | +0.002 ± 0.049 (no signal) |
+| Verdict | abstain (duration) |
+
+Diagnosis (camera only, no probe):
+
+- The lock's exposure search ended on a 125 ms manual exposure (2^-3 s) and the driver kept it,
+  even with auto exposure switched back on: 10–11 fps afterwards.
+- Manual exposures up to 31 ms give 30 fps but near-black frames (mean brightness 2–5 of 255),
+  so no manual exposure can match the auto image in this room.
+- Auto exposure, re-enabled from a short exposure: 16–17.5 fps at normal brightness. Below
+  16 fps the camera cannot sample an 8 Hz probe component at all.
+
+Fixes in code: exposure search limited to one frame period, auto exposure always re-enabled from
+a short exposure, warm-up 8 s with the lock at 0.5 s, and an abstain on capture fps below
+2 x the top probe frequency. Next: repeat full screen at 100% brightness with room lights on.

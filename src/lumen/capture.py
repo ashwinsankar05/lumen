@@ -85,11 +85,15 @@ class _Paced:
         self._next = max(self._next + self.period, self.now())
 
 
+def exposure_steps_for(fps: float) -> int:
+    """Longest DirectShow exposure step (log2 seconds) that fits in one frame at `fps`."""
+    return int(np.floor(np.log2(1.0 / fps)))
+
+
 class CameraSource:
     # OpenCV's DirectShow convention for CAP_PROP_AUTO_EXPOSURE.
     AUTO_ON, AUTO_OFF = 0.75, 0.25
-    EXPOSURES = range(-9, -2)  # DirectShow exposure is log2(seconds)
-    WB_TEMPERATURES = range(2800, 7000, 400)
+    WB_TEMPERATURES = range(2800, 7000, 700)
     MAX_LIGHTNESS_ERROR = 10.0  # L*: a steady exposure matters more than an exact match
     MAX_CHROMA_ERROR = 3.0
 
@@ -109,6 +113,10 @@ class CameraSource:
         self.cap.set(cv2.CAP_PROP_FPS, fps)
         self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         self._restore_exposure = self._restore_wb = False
+        # DirectShow exposure is log2(seconds). Only exposures that fit in one frame period are
+        # tried: a longer one caps the frame rate, and drivers keep it after release (measured on
+        # the dev laptop: a 125 ms trial left the camera at 10 fps, even back on auto).
+        self.exposures = list(range(-9, exposure_steps_for(fps) + 1))
         self.report = CaptureReport(
             source=f"camera:{index} ({self.cap.getBackendName()})",
             width=int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
@@ -121,7 +129,14 @@ class CameraSource:
         ok, img = self.cap.read()
         return img if ok else None
 
-    def _measure(self, settle: int = 3, n: int = 3) -> np.ndarray | None:
+    def _auto_exposure(self) -> None:
+        """Back to auto exposure from a short manual exposure, so auto starts from a fast frame
+        rate (on the dev laptop's driver, auto keeps a long exposure it was switched on from)."""
+        self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, self.AUTO_OFF)
+        self.cap.set(cv2.CAP_PROP_EXPOSURE, self.exposures[-1])
+        self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, self.AUTO_ON)
+
+    def _measure(self, settle: int = 2, n: int = 2) -> np.ndarray | None:
         """Mean CIELAB of the next few frames, after letting a setting take effect."""
         for _ in range(settle):
             self.cap.read()
@@ -142,7 +157,7 @@ class CameraSource:
         cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, self.AUTO_OFF)
         self._restore_exposure = True
         trials = []
-        for e in self.EXPOSURES:
+        for e in self.exposures:
             cap.set(cv2.CAP_PROP_EXPOSURE, e)
             if (lab := self._measure()) is not None:
                 trials.append((abs(lab[0] - target[0]), e, lab[0]))
@@ -152,7 +167,7 @@ class CameraSource:
             self.report.exposure_locked = True
             notes.append(f"exposure locked at {best[1]}: L* {best[2]:.1f} vs auto {target[0]:.1f}")
         else:
-            cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, self.AUTO_ON)
+            self._auto_exposure()
             self._restore_exposure = False
             self.report.exposure_locked = False
             gap = "no frames" if best is None else f"closest L* off by {best[0]:.1f}"
@@ -181,7 +196,7 @@ class CameraSource:
     def close(self) -> None:
         """Release the camera, putting back any auto mode lock() turned off (drivers persist it)."""
         if self._restore_exposure:
-            self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, self.AUTO_ON)
+            self._auto_exposure()
         if self._restore_wb:
             self.cap.set(cv2.CAP_PROP_AUTO_WB, 1)
         self.cap.release()

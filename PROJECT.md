@@ -192,6 +192,9 @@ call and scored on physical quantities rather than perceived quality.
 
 ## 12. Working agreement
 
+- **Before every recording session or any webcam use, ask the subject "ready?" and start only
+  after an explicit yes.** Say what will run (duration, full screen or windowed, camera on). One
+  yes covers one session; never chain sessions on one approval.
 - Ask before adding a dependency that needs a GPU or a network call in the live path.
 - Prefer one measured number over three paragraphs of explanation.
 - When something fails to reproduce, write it in `docs/RESULTS.md` rather than quietly retuning
