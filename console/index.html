@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LUMEN console</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <div class="brand"><span class="mark" aria-hidden="true"></span>LUMEN <small>proof of physical presence</small></div>
+  <div id="health" class="health">connecting…</div>
+</header>
+
+<main>
+  <section class="card" id="start-card">
+    <h2>New session</h2>
+    <form id="start-form">
+      <label>Source
+        <input name="source" list="sources" value="camera:0" required>
+        <datalist id="sources">
+          <option value="camera:0">webcam or virtual camera</option>
+          <option value="camera:1"></option>
+          <option value="synthetic:genuine">SIMULATED genuine</option>
+          <option value="synthetic:swap_inherit">SIMULATED swap that inherits the probe</option>
+          <option value="synthetic:swap_unlit">SIMULATED unlit swap</option>
+          <option value="synthetic:replay">SIMULATED replay</option>
+          <option value="synthetic:lamp">SIMULATED lamp on face</option>
+          <option value="synthetic:far">SIMULATED subject far away</option>
+          <option value="synthetic:relit">SIMULATED uniform relighting</option>
+        </datalist>
+      </label>
+      <label>Probe
+        <select name="layout">
+          <option value="split">two-sided (L1–L3)</option>
+          <option value="single">single (L1–L2 only)</option>
+        </select>
+      </label>
+      <label>Duration (s) <input name="duration_s" type="number" min="10" max="300" step="5" value="45"></label>
+      <label>Amplitude <input name="amplitude" type="number" min="2" max="36" step="1" value="24"></label>
+      <label>Label <input name="label" placeholder="e.g. genuine-1"></label>
+      <label class="check"><input name="fullscreen" type="checkbox" checked> full-screen probe</label>
+      <label class="check"><input name="save_video" type="checkbox"> save video</label>
+      <div class="buttons">
+        <button type="submit" id="start-btn">Start</button>
+        <button type="button" id="stop-btn" class="secondary" disabled>Stop</button>
+      </div>
+    </form>
+    <p class="hint">The probe window opens full-screen on this machine. Esc in that window aborts.</p>
+  </section>
+
+  <section class="card" id="live-card">
+    <h2>Live <span id="live-state" class="pill">idle</span></h2>
+    <div class="progress"><div id="progress-bar"></div></div>
+    <canvas id="traces" width="900" height="240" aria-label="probe, face and neck traces"></canvas>
+    <div class="legend"><span class="sw probe"></span>probe (left a*) <span class="sw face"></span>face a* <span class="sw neck"></span>neck a*</div>
+    <div class="tiles" id="tiles"></div>
+  </section>
+
+  <section class="card" id="verdict-card">
+    <h2>Verdict</h2>
+    <div id="verdict" class="verdict empty">No session yet.</div>
+    <table id="checks"><thead><tr><th>Check</th><th>Value</th><th>Threshold</th><th></th></tr></thead><tbody></tbody></table>
+    <div id="record-links"></div>
+  </section>
+
+  <section class="card" id="sessions-card">
+    <h2>Sessions</h2>
+    <div class="buttons">
+      <button id="refresh-btn" class="secondary">Refresh</button>
+      <button id="calibrate-btn" class="secondary">Calibrate from selected genuine sessions</button>
+      <button id="reset-btn" class="secondary">Reset thresholds</button>
+    </div>
+    <div id="thresholds" class="hint"></div>
+    <div class="table-wrap">
+      <table id="sessions"><thead><tr><th></th><th>Session</th><th>Source</th><th>Probe</th><th>Decision</th><th>Face</th><th>Neck</th><th>Cheeks</th></tr></thead><tbody></tbody></table>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Verify a record</h2>
+    <input type="file" id="verify-file" accept="application/json,.json">
+    <div id="verify-out" class="hint"></div>
+  </section>
+</main>
+<script src="/static/app.js"></script>
+</body>
+</html>
