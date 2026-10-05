@@ -62,6 +62,12 @@ Design decisions:
 3. Per-sub-region gain maps ("spatial field") are reported as diagnostics, not enforced: they
    depend on room lighting, whereas the lateral contrast is referenced to the screen itself.
 
+Simulation only (`experiments/codec_survival/run.py --synthetic`, 2026-10-05; synthetic 320x240
+scenes, H.264 80–600 kbps and VP8 150–300 kbps, 4:2:0): the probe stays well above the noise
+floor, but the genuine cheek contrast roughly halves (≈0.58 → 0.26–0.35) while the
+probe-inheriting swap stays near 0. Consequence to test on real footage: **calibrate through the
+same call path the verdicts will use**; webcam-direct thresholds would not transfer to a call.
+
 **Rule: never write a simulated number anywhere that implies it was measured.** Measured results go
 in `docs/RESULTS.md` with the date, hardware and conditions. Keep the two apart in every document,
 commit message and slide.
@@ -117,7 +123,7 @@ src/lumen/
   synthetic.py   SIMULATED scenes for tests/console only (records say so)
 console/         single-page operator UI (no CDN)
 models/          YuNet ONNX model (committed, so the demo needs no network)
-experiments/     m1_probe_survival/, lateral_probe/, codec_survival/; each writes its own results
+experiments/     m1_probe_survival/report.py, codec_survival/run.py; each writes results/ (git-ignored)
 docs/            RESULTS.md (measured only), PROTOCOL.md, DEMO.md
 tests/           synthetic-signal tests, pipeline, session, API
 data/            recordings, keys, thresholds (git-ignored)

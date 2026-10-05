@@ -54,6 +54,17 @@ python -m lumen calibrate <G ids...>
 then re-run the report to see each session's verdict under those thresholds, using leave-one-out
 for the genuine sessions so no session is judged by thresholds it helped set.
 
+## Codec loss (needs sessions recorded with `--save-video`)
+
+```powershell
+python experiments/codec_survival/run.py --session <G id> --session <S id>
+```
+
+re-encodes each lossless recording through H.264 and VP8 at call-like bitrates and re-measures.
+This is a measurement on real footage (record it in `docs/RESULTS.md`). If cheek contrast shrinks
+under compression, as it does in simulation, the deployment must be calibrated through the same
+call path it will judge.
+
 ## Decision rules
 
 - **Probe survives?** Genuine neck coherence well above the floor (≥ 4 × p/K) at the chosen

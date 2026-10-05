@@ -13,6 +13,6 @@ httpx>=0.27
 
 # Experiments (plots; codec round-trips)
 matplotlib>=3.8
-av>=12
+av==12.3.0  # later wheels are blocked by Windows Application Control on the dev laptop
 
 # Then: pip install -e .   (makes `python -m lumen` work from anywhere)

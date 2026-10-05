@@ -67,7 +67,7 @@ calibrate, every verdict is flagged *provisional*.
 src/lumen/     colour, probe, emitter, capture, regions, features, decide, record, session, api, synthetic
 console/       single-page operator UI (no CDN)
 models/        YuNet face detector (MIT, OpenCV model zoo)
-experiments/   m1_probe_survival/report.py
+experiments/   m1_probe_survival/report.py, codec_survival/run.py (H.264 / VP8 round trips)
 docs/          RESULTS.md (measured only), PROTOCOL.md, DEMO.md
 tests/         simulated-signal, pipeline, session and API tests
 data/          sessions, keys, thresholds (git-ignored)

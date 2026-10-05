@@ -96,6 +96,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--genuine", nargs="*", default=[], help="genuine session ids (calibration)")
     p.add_argument("--out-dir", default=SessionConfig().out_dir)
     a = p.parse_args(argv)
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")  # the table uses ± and –
 
     ids = list(dict.fromkeys(a.genuine + a.sessions))
     if not ids:
@@ -107,8 +109,8 @@ def main(argv: list[str] | None = None) -> int:
 
     out = HERE / "results" / datetime.now().strftime("%Y%m%d-%H%M%S")
     out.mkdir(parents=True, exist_ok=True)
-    (out / "results.md").write_text(table)
-    (out / "results.json").write_text(json.dumps(rows, indent=2))
+    (out / "results.md").write_text(table, encoding="utf-8")
+    (out / "results.json").write_text(json.dumps(rows, indent=2), encoding="utf-8")
     print(f"written to {out}")
     if any(r["simulated"] for r in rows):
         print("WARNING: simulated sessions included; do not copy these numbers into docs/RESULTS.md",
