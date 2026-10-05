@@ -81,3 +81,33 @@ lean in opposite directions with the predicted sign. One session of 20 s: the ch
 only ~2 SE from zero, and the background responds at half the neck's gain (wall distance not
 recorded). Not evidence about attacks. Next: 60 s genuine sessions (floor ~0.07), wall distance
 written down. Smoke default raised to 30 s.
+
+## 2026-10-05 — M1 genuine session G1
+
+- Hardware: as above; camera 19.9–20.8 fps, exposure on auto (not lockable), white balance locked.
+  Probe full screen, brightness 100% (as instructed), split layout, amplitude 24, 60 s, 8 s
+  warm-up, 2 s segments, band 2–8 Hz.
+- Place: an auditorium; the wall behind the subject far away (subject's report). Subject facing
+  the screen at ~40 cm (as instructed; not measured). Inter-eye distance ~64 px at 640x480.
+- Session: `20261005-174457-G1-f347`, lossless video saved (replay and codec runs).
+
+| | Whole 60 s (at recording) | Longest gap-free stretch (re-analysis) |
+|---|---|---|
+| Analysed | 59.8 s, K = 58 | 0.0–55.3 s, K = 54 |
+| Face coh. / neck coh. / floor | 0.833 / 0.828 / 0.069 | **0.864 / 0.866 / 0.074** |
+| Face/neck coherence ratio | 1.006 | 0.998 |
+| Face/neck gain; background/neck gain | 0.489; **0.082** | — |
+| Cheek contrast ± SE (right +0.366, left −0.216) | +0.582 ± 0.023 | **+0.589 ± 0.029** |
+| Lag | 133 ms | 133 ms |
+| Max gap | 1.105 s | 0.067 s |
+| Verdict (provisional thresholds) | abstain (max_gap_s) | verify (L3 not yet calibrated) |
+
+- The face was lost twice near the end (55.4–56.1 s, 57.0–58.0 s; head yaw up to 0.31, i.e. the
+  subject turned). The recorded verdict was abstain; analysis was then changed to use the longest
+  gap-free stretch rather than interpolate across a > 0.5 s gap, and the re-analysis verifies.
+  Both are kept here; the change was made because interpolating over a look-away invents data,
+  not to make G1 pass.
+- Reading: on a real face in a large room the probe is ~12x the noise floor on face and neck,
+  the far background barely responds (0.08 of the neck), and the cheeks lean in opposite
+  directions with the predicted sign, ~20 SE from zero. One subject, one session: this is the
+  genuine baseline the attack sessions will be compared with, not a result about attacks.

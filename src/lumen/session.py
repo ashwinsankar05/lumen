@@ -90,6 +90,33 @@ class SessionResult:
 
 # --- pure helpers (also used by reanalysis) ----------------------------------------------------
 
+def longest_clean_stretch(t: np.ndarray, samples: list[dict | None], max_gap_s: float) -> np.ndarray:
+    """Boolean mask of the frames in the longest stretch with no face/neck gap over max_gap_s.
+
+    Interpolating across a long gap (the subject looked away) would invent data, so the analysis
+    uses the longest clean stretch instead; short holes inside it are interpolated as usual.
+    """
+    t = np.asarray(t, dtype=float)
+    usable = np.array([bool(s) and all(r in s for r in REQUIRED) for s in samples], dtype=bool)
+    keep = np.zeros(len(t), dtype=bool)
+    idx = np.flatnonzero(usable)
+    if len(idx) == 0:
+        return keep
+    breaks = np.flatnonzero(np.diff(t[idx]) > max_gap_s)
+    starts = np.r_[0, breaks + 1]
+    ends = np.r_[breaks, len(idx) - 1]
+    best = int(np.argmax(t[idx[ends]] - t[idx[starts]]))
+    keep[idx[starts[best]]: idx[ends[best]] + 1] = True
+    return keep
+
+
+def trim_note(t: np.ndarray, keep: np.ndarray) -> str | None:
+    if keep.all() or not keep.any():
+        return None
+    return (f"analysed the longest gap-free stretch, {t[keep][0] - t[0]:.1f} to {t[keep][-1] - t[0]:.1f} s of "
+            f"{t[-1] - t[0]:.1f} s (face or neck lost for longer than the gap limit elsewhere)")
+
+
 def split_regions(t: np.ndarray, samples: list[dict | None]) -> tuple[dict, float]:
     """Per-frame region dicts -> (name -> (timestamps, Lab (N, 3)), usable-frame fraction).
 
@@ -162,10 +189,11 @@ def samples_from_record(record: dict) -> tuple[np.ndarray, list[dict | None]]:
     return t, samples
 
 
-def reanalyse(record: dict) -> Features | None:
+def reanalyse(record: dict, max_gap_s: float = Thresholds().max_gap_s) -> Features | None:
     """Recompute features from a saved record's series, exactly as the live session did."""
     t, samples = samples_from_record(record)
-    regions_lab, _ = split_regions(t, samples)
+    keep = longest_clean_stretch(t, samples, max_gap_s)
+    regions_lab, _ = split_regions(t[keep], [s for s, k in zip(samples, keep) if k])
     return analyse_capture(np.asarray(record["emitted"]["t"], dtype=float),
                            np.asarray(record["emitted"]["lab"], dtype=float), regions_lab,
                            config_from_record(record))
@@ -336,8 +364,12 @@ class Session:
     def _finish(self, outcome: str, *, capture: dict, capture_error: str | None, notes: list) -> SessionResult:
         cfg = self.cfg
         t, samples, poses = self._probe_window()
-        regions_lab, fraction = split_regions(t, samples)
-        pose = pose_summary(poses)
+        _, fraction = split_regions(t, samples)  # over the whole probe period, reported as is
+        keep = longest_clean_stretch(t, samples, self.thresholds.max_gap_s)
+        if note := trim_note(t, keep):
+            notes.append(note)
+        regions_lab, _ = split_regions(t[keep], [s for s, k in zip(samples, keep) if k])
+        pose = pose_summary([p for p, k in zip(poses, keep) if k])
         features = None
         if self.log is not None and len(self.log) > 1:
             features = analyse_capture(*self.log.arrays(), regions_lab, cfg)

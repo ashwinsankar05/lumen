@@ -101,6 +101,23 @@ def test_split_regions_drops_rare_optional_regions():
     assert regions["face"][1].shape == (9, 3)
 
 
+def test_longest_clean_stretch_skips_a_long_gap():
+    """Measured case (G1): the face was lost for ~1 s near the end; keep the clean 55 s before it."""
+    from lumen.session import longest_clean_stretch, trim_note
+
+    t = np.arange(0, 60, 0.05)
+    lab = np.array([60.0, 10.0, 10.0])
+    ok = {"face": lab, "neck": lab}
+    samples = [None if 55.4 <= ti <= 56.1 or 57.0 <= ti <= 58.0 else ok for ti in t]
+    samples[100] = None  # a single dropped frame inside the stretch is fine
+    keep = longest_clean_stretch(t, samples, max_gap_s=0.5)
+    assert t[keep][0] == 0.0 and t[keep][-1] == pytest.approx(55.35)
+    assert keep[100]  # short holes stay inside the stretch, interpolated later
+    assert trim_note(t, keep).startswith("analysed the longest gap-free stretch, 0.0 to 55.")
+    assert trim_note(t, np.ones(len(t), bool)) is None
+    assert not longest_clean_stretch(t, [None] * len(t), 0.5).any()
+
+
 def test_pose_summary():
     assert pose_summary([None, None]) is None
     s = pose_summary([(0.1, 2.0, 40.0), None, (0.3, 4.0, 42.0), (0.2, 3.0, 41.0)])
