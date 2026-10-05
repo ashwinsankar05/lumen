@@ -32,7 +32,7 @@ versions is blocked by Windows Application Control on the development laptop.
 ```powershell
 .venv\Scripts\python -m lumen cameras                  # which camera indices open (real + virtual)
 .venv\Scripts\python -m lumen pick-region              # select a video-call tile as the source
-.venv\Scripts\python -m lumen smoke                    # 20 s: frame rate, exposure lock, face found
+.venv\Scripts\python -m lumen smoke                    # 30 s: frame rate, exposure lock, face found
 .venv\Scripts\python -m lumen run --label genuine-1    # one session; verdict in the terminal
 .venv\Scripts\python -m lumen serve                    # operator console: http://127.0.0.1:8000
 .venv\Scripts\python -m lumen calibrate <id> <id> <id> # thresholds from genuine sessions

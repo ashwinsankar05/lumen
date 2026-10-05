@@ -2,7 +2,7 @@
 
   serve                 operator console at http://127.0.0.1:8000
   run                   one session from the terminal; prints the verdict and saves a signed record
-  smoke                 short capture check: real frame rate, exposure lock, face found
+  smoke                 30 s capture check: real frame rate, exposure lock, face found
   cameras               list camera indices that open (real and virtual)
   pick-region           drag a box round the subject's video tile; prints the screen: source
   calibrate ID [ID...]  set thresholds from genuine sessions recorded in today's conditions
@@ -102,7 +102,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--host", default="127.0.0.1")
     p.add_argument("--port", type=int, default=8000)
     _session_args(sub.add_parser("run"), 45.0)
-    _session_args(sub.add_parser("smoke"), 20.0)
+    _session_args(sub.add_parser("smoke"), 30.0)
     sub.add_parser("cameras").add_argument("--max-index", type=int, default=5)
     sub.add_parser("pick-region").add_argument("--monitor", type=int, default=1, help="1 = primary screen")
     sub.add_parser("calibrate").add_argument("session_ids", nargs="+")

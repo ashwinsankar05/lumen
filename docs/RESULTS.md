@@ -56,3 +56,28 @@ Diagnosis (camera only, no probe):
 Fixes in code: exposure search limited to one frame period, auto exposure always re-enabled from
 a short exposure, warm-up 8 s with the lock at 0.5 s, and an abstain on capture fps below
 2 x the top probe frequency. Next: repeat full screen at 100% brightness with room lights on.
+
+## 2026-10-05 — Full-screen smoke test after the camera fixes (not M1)
+
+- Hardware: as above. Probe **full screen**, display brightness 100%, room lights on, subject
+  about 40 cm away facing the screen (as instructed; not measured). Split layout, amplitude 24,
+  8 s warm-up, 20 s probe, 2 s Welch segments, band 2–8 Hz.
+- Session: `20261005-174148-smoke-full-b061` (record verifies; numbers from re-analysis).
+
+| Measured | Value |
+|---|---|
+| Camera frame rate | 19.9 fps (requested 30); 0 dropped; processing 4.7 ms/frame |
+| Face + neck found | 100% |
+| Exposure / WB locked | no (manual exposure 53.5 L* too dark) / yes; lock done before the probe |
+| Lag (from the neck) | 133 ms |
+| Face coh. / neck coh. / floor (K) | **0.692 / 0.569 / 0.222 (18)** |
+| Face/neck gain; background/neck gain | 0.596; 0.517 |
+| Lateral index: image-right cheek / image-left cheek | +0.153 / −0.071 |
+| Cheek contrast ± jackknife SE | +0.224 ± 0.115 |
+| Verdict | abstain (19.87 s analysed < 20 s minimum: the smoke default was too short) |
+
+Reading: the probe is detected on a real face and neck at ~3x the noise floor, and the cheeks
+lean in opposite directions with the predicted sign. One session of 20 s: the cheek contrast is
+only ~2 SE from zero, and the background responds at half the neck's gain (wall distance not
+recorded). Not evidence about attacks. Next: 60 s genuine sessions (floor ~0.07), wall distance
+written down. Smoke default raised to 30 s.
