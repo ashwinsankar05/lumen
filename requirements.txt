@@ -1,6 +1,6 @@
 # Runtime (CPU only; no network calls in the live path)
 numpy>=1.26
-scipy>=1.11
+scipy>=1.11,<1.16  # 1.18 pythran DLL is blocked by Windows Application Control on the dev laptop
 opencv-contrib-python>=4.8
 fastapi>=0.110
 uvicorn>=0.27

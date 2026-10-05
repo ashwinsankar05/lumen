@@ -9,7 +9,7 @@ description = "Proof of physical presence for live video, by measurement rather 
 requires-python = ">=3.10"
 dependencies = [
     "numpy>=1.26",
-    "scipy>=1.11",
+    "scipy>=1.11,<1.16",  # see requirements.txt
     "opencv-contrib-python>=4.8",
     "fastapi>=0.110",
     "uvicorn>=0.27",
