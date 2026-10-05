@@ -111,3 +111,17 @@ written down. Smoke default raised to 30 s.
   the far background barely responds (0.08 of the neck), and the cheeks lean in opposite
   directions with the predicted sign, ~20 SE from zero. One subject, one session: this is the
   genuine baseline the attack sessions will be compared with, not a result about attacks.
+
+## 2026-10-05 — M1 genuine session G2
+
+Same place, hardware and settings as G1, a few minutes later. Session `20261005-175133-G2-33fb`
+(video saved). Whole 60 s analysed, no gaps (face found in 100% of frames), head yaw −0.02
+(IQR 0.04), 20.8 fps.
+
+| Face coh. / neck coh. / floor (K) | Ratio | Gain; background | Cheek contrast ± SE (right / left) | Lag | Verdict (provisional) |
+|---|---|---|---|---|---|
+| 0.870 / 0.899 / 0.069 (58) | 0.967 | 0.508; 0.060 | **+0.573 ± 0.036** (+0.373 / −0.199) | 100 ms | verify (L3 uncalibrated) |
+
+Reading: G1 and G2 agree (cheek contrast 0.589 vs 0.573, within one SE of each other; face and
+neck coherence 0.86–0.90). Same subject, same pose, same room, minutes apart: repeatability
+within one sitting, not across subjects or rooms.
