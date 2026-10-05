@@ -297,6 +297,33 @@ class MjpegSource:
         self._resp.close()
 
 
+def roi_to_spec(roi: tuple[int, int, int, int], monitor: dict, scale: float) -> str | None:
+    """A rectangle drawn on a (scaled) screenshot -> the absolute 'screen:x,y,w,h' source spec."""
+    x, y, w, h = roi
+    if w <= 0 or h <= 0:
+        return None
+    return (f"screen:{monitor['left'] + round(x / scale)},{monitor['top'] + round(y / scale)},"
+            f"{round(w / scale)},{round(h / scale)}")
+
+
+def pick_screen_region(monitor_index: int = 1, max_width: int = 1600) -> str | None:
+    """Screenshot a monitor, let the operator drag a box round the subject's video tile.
+
+    Returns the source spec for that tile, or None if the selection was cancelled.
+    """
+    import mss
+
+    with mss.mss() as grabber:
+        monitor = grabber.monitors[monitor_index]
+        shot = cv2.cvtColor(np.asarray(grabber.grab(monitor)), cv2.COLOR_BGRA2BGR)
+    scale = min(1.0, max_width / shot.shape[1])
+    view = cv2.resize(shot, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA) if scale < 1 else shot
+    title = "Drag a box round the subject's video tile, then press Enter (Esc cancels)"
+    roi = cv2.selectROI(title, view, showCrosshair=False)
+    cv2.destroyWindow(title)
+    return roi_to_spec(tuple(int(v) for v in roi), monitor, scale)
+
+
 def open_source(spec: str, *, width: int = 640, height: int = 480, fps: float = 30.0) -> Source:
     kind, _, arg = spec.partition(":")
     if kind == "camera":

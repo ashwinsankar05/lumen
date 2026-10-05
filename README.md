@@ -31,6 +31,7 @@ versions is blocked by Windows Application Control on the development laptop.
 
 ```powershell
 .venv\Scripts\python -m lumen cameras                  # which camera indices open (real + virtual)
+.venv\Scripts\python -m lumen pick-region              # select a video-call tile as the source
 .venv\Scripts\python -m lumen smoke                    # 20 s: frame rate, exposure lock, face found
 .venv\Scripts\python -m lumen run --label genuine-1    # one session; verdict in the terminal
 .venv\Scripts\python -m lumen serve                    # operator console: http://127.0.0.1:8000
@@ -45,6 +46,21 @@ camera, for the replay drill), `screen:<x>,<y>,<w>,<h>` (the subject's tile in a
 sources are marked `simulated` everywhere.
 
 `--single` uses one probe sequence for the whole screen; that disables L3 (see `PROJECT.md` §4).
+
+### Call mode (verifying someone on Zoom / Meet / Teams)
+
+In a call, the light on the subject comes from *their* screen, which shows *our* video. So the
+probe goes out as our camera feed and we measure their tile on our screen:
+
+1. Install [OBS Studio](https://obsproject.com/) (28 or later) and start it once; it registers the
+   "OBS Virtual Camera" driver. Close OBS afterwards.
+2. In the call, choose **OBS Virtual Camera** as your camera and ask the subject to make your
+   video large (full screen or speaker view) and keep their face in view.
+3. `python -m lumen pick-region` — drag a box round the subject's tile; it prints a `screen:` source.
+4. `python -m lumen run --source "screen:x,y,w,h" --emit virtualcam --label call-genuine-1`
+
+Calibrate from genuine sessions recorded **through the same call app** (`PROJECT.md` §4): the
+codec weakens the cheek lean, and some apps mirror the video, which calibration detects.
 
 ## How it decides
 

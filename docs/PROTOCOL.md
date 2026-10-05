@@ -65,6 +65,14 @@ This is a measurement on real footage (record it in `docs/RESULTS.md`). If cheek
 under compression, as it does in simulation, the deployment must be calibrated through the same
 call path it will judge.
 
+## Through a real call (after the local sessions)
+
+Repeat one G–S–G sandwich with the probe carried by a call: verifier laptop with
+`--emit virtualcam` (OBS Virtual Camera selected in Meet/Zoom), subject on a second device with
+the verifier's video full screen, source from `python -m lumen pick-region`. Write down the call
+app, both devices, the tile size in pixels, and whether calibration found the video mirrored
+(`cheek_contrast_sign` in `data/thresholds.json`).
+
 ## Decision rules
 
 - **Probe survives?** Genuine neck coherence well above the floor (≥ 4 × p/K) at the chosen

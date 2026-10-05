@@ -19,6 +19,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "httpx>=0.27"]
+call = ["pyvirtualcam>=0.11"]
 experiments = ["matplotlib>=3.8", "av==12.3.0"]  # av: see requirements.txt
 
 [tool.setuptools.packages.find]

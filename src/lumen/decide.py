@@ -54,6 +54,7 @@ class Thresholds:
     background_gain_ratio_max: float = 0.6
     # Enforced only once calibrated (None: not yet)
     cheek_contrast_min: float | None = None       # L3
+    cheek_contrast_sign: int = 1                  # -1 when calibration saw mirrored video
     max_abs_yaw: float | None = None              # 2. pose gate
     face_neck_lightness_max: float | None = None  # 4. lamp gate
 
@@ -188,8 +189,10 @@ def decide(
     elif th.cheek_contrast_min is None:
         checks.append(Check("L3_cheek_contrast", contrast, "needs calibration (genuine two-sided sessions)", None))
     else:
-        l3 = contrast >= th.cheek_contrast_min
-        checks.append(Check("L3_cheek_contrast", contrast, f">= {th.cheek_contrast_min}", l3))
+        oriented = th.cheek_contrast_sign * contrast
+        l3 = oriented >= th.cheek_contrast_min
+        mirrored = " (video mirrored: sign flipped)" if th.cheek_contrast_sign < 0 else ""
+        checks.append(Check("L3_cheek_contrast", oriented, f">= {th.cheek_contrast_min}{mirrored}", l3))
 
     if not l1:
         return done("reject", "the face does not follow the probe while the neck does (L1)")
@@ -233,7 +236,13 @@ def calibrate(genuine: list[Features], base: Thresholds | None = None,
     if bgs := [f.background_gain_ratio for f in genuine if f.background_gain_ratio is not None]:
         updates["background_gain_ratio_max"] = round(max(0.3, 1.5 * max(bgs)), 4)
 
+    # A call app that mirrors the video swaps left and right, flipping the sign of every genuine
+    # contrast. Learn the orientation from the genuine sessions; a swap sits near 0 either way.
     contrasts = [f.cheek_contrast for f in genuine if f.cheek_contrast is not None]
+    if contrasts:
+        sign = -1 if np.mean(contrasts) < 0 else 1
+        updates["cheek_contrast_sign"] = sign
+        contrasts = [sign * c for c in contrasts]
     if len(contrasts) >= 3:
         updates["cheek_contrast_min"] = round(max(0.0, float(np.mean(contrasts) - 3 * np.std(contrasts, ddof=1))), 4)
     elif contrasts:

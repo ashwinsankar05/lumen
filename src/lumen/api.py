@@ -24,7 +24,7 @@ from lumen.record import load_or_create_key, load_record, public_key_hex, verify
 from lumen.session import Session, SessionConfig, reanalyse
 
 CONSOLE_DIR = Path(__file__).resolve().parents[2] / "console"
-CLIENT_FIELDS = {"source", "layout", "duration_s", "amplitude", "lightness", "label", "fullscreen",
+CLIENT_FIELDS = {"source", "layout", "emit", "duration_s", "amplitude", "lightness", "label", "fullscreen",
                  "save_video", "max_lag_s", "warmup_s"}
 
 

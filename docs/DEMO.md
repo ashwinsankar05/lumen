@@ -23,6 +23,14 @@ the GPU is used only by the face-swap tool in scenario 2.
 
 After each: download the signed record and drop it into **Verify a record**.
 
+## Optional: the same check over a real video call
+
+Two laptops (or a laptop and a phone) in one Meet/Zoom call. On the verifier laptop: OBS Studio
+installed, **OBS Virtual Camera** selected as the camera in the call, then
+`python -m lumen pick-region` on the subject's tile and
+`python -m lumen run --source "screen:…" --emit virtualcam`. Calibrate through the call first
+(three genuine sessions); thresholds from the local setup do not transfer.
+
 ## Failure drills
 
 - **No network:** already unplugged; nothing changes.

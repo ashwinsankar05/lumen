@@ -4,6 +4,7 @@
   run                   one session from the terminal; prints the verdict and saves a signed record
   smoke                 short capture check: real frame rate, exposure lock, face found
   cameras               list camera indices that open (real and virtual)
+  pick-region           drag a box round the subject's video tile; prints the screen: source
   calibrate ID [ID...]  set thresholds from genuine sessions recorded in today's conditions
   verify RECORD.json    check a record's signature and that its emission matches its nonce
   reanalyse RECORD.json recompute features and verdict from a saved record
@@ -29,7 +30,10 @@ def _session_args(p: argparse.ArgumentParser, duration: float) -> None:
     p.add_argument("--windowed", action="store_true", help="window instead of full-screen")
     p.add_argument("--monitor-x", type=int, default=0, help="x offset of the screen to show the probe on")
     p.add_argument("--save-video", action="store_true", help="also save the captured video (lossless)")
-    p.add_argument("--max-lag", type=float, default=1.0, help="largest pipeline delay searched, seconds")
+    p.add_argument("--emit", choices=("screen", "virtualcam"), default="screen",
+                   help="screen: probe on this display; virtualcam: probe as our outgoing call video")
+    p.add_argument("--max-lag", type=float, default=None,
+                   help="largest pipeline delay searched, seconds (default 1; 2 with --emit virtualcam)")
     p.add_argument("--no-lock", action="store_true", help="leave camera auto-exposure / auto-WB alone")
 
 
@@ -39,7 +43,9 @@ def _config(a):
     return SessionConfig(source=a.source, layout="single" if a.single else "split", duration_s=a.duration,
                          amplitude=a.amplitude, lightness=a.lightness, label=a.label,
                          fullscreen=not a.windowed, window_position=(a.monitor_x, 0),
-                         save_video=a.save_video, max_lag_s=a.max_lag, lock_camera=not a.no_lock)
+                         save_video=a.save_video, emit=a.emit,
+                         max_lag_s=a.max_lag if a.max_lag is not None else (2.0 if a.emit == "virtualcam" else 1.0),
+                         lock_camera=not a.no_lock)
 
 
 def _fmt(v) -> str:
@@ -98,6 +104,7 @@ def main(argv: list[str] | None = None) -> int:
     _session_args(sub.add_parser("run"), 45.0)
     _session_args(sub.add_parser("smoke"), 20.0)
     sub.add_parser("cameras").add_argument("--max-index", type=int, default=5)
+    sub.add_parser("pick-region").add_argument("--monitor", type=int, default=1, help="1 = primary screen")
     sub.add_parser("calibrate").add_argument("session_ids", nargs="+")
     sub.add_parser("verify").add_argument("record")
     sub.add_parser("reanalyse").add_argument("record")
@@ -144,6 +151,17 @@ def main(argv: list[str] | None = None) -> int:
             if ok:
                 print(f"camera:{i}  {img.shape[1]}x{img.shape[0]}  ({cap.getBackendName()})")
             cap.release()
+        return 0
+
+    if a.cmd == "pick-region":
+        from lumen.capture import pick_screen_region
+
+        spec = pick_screen_region(a.monitor)
+        if spec is None:
+            print("no region selected")
+            return 1
+        print(spec)
+        print(f'use it with:  python -m lumen run --source "{spec}" --emit virtualcam')
         return 0
 
     if a.cmd == "calibrate":

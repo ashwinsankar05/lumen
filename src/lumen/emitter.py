@@ -130,6 +130,44 @@ class CvDisplay:
             pass
 
 
+class VirtualCamDisplay:
+    """Sends the probe into a virtual camera, so a video call carries it to the subject.
+
+    In a real call the light on the subject's face comes from *their* screen, which shows *our*
+    outgoing video. Selecting the virtual camera ("OBS Virtual Camera") as the webcam in Zoom /
+    Meet / Teams makes the probe that outgoing video. Needs pyvirtualcam plus a driver (OBS Studio
+    28+ or Unity Capture). Keys cannot be read from a virtual camera, so show() never returns Esc;
+    stop the session from the console or with Ctrl+C.
+
+    The field is upscaled with nearest-neighbour so the dithered mean colour is kept exactly. Call
+    apps may mirror video; calibration learns the resulting sign of the cheek contrast.
+    """
+
+    def __init__(self, *, size: tuple[int, int] = (1280, 720), fps: float = 30.0, device: str | None = None,
+                 camera_factory=None):
+        if camera_factory is None:
+            try:
+                import pyvirtualcam
+            except ImportError as exc:
+                raise RuntimeError("call mode needs pyvirtualcam: pip install pyvirtualcam") from exc
+            camera_factory = pyvirtualcam.Camera
+        self.size = size
+        try:
+            self._cam = camera_factory(width=size[0], height=size[1], fps=fps, device=device)
+        except RuntimeError as exc:  # no driver installed
+            raise RuntimeError(f"no virtual camera available ({exc}); install OBS Studio and start it once") from exc
+        self.notes = [f"probe sent to virtual camera {getattr(self._cam, 'device', '?')} "
+                      f"at {size[0]}x{size[1]}, {fps:g} fps"]
+
+    def show(self, bgr: np.ndarray) -> int:
+        frame = cv2.resize(bgr, self.size, interpolation=cv2.INTER_NEAREST)
+        self._cam.send(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        return -1
+
+    def close(self) -> None:
+        self._cam.close()
+
+
 class Emitter:
     """Shows the base colour until the log's t0, then the probe, until it ends."""
 

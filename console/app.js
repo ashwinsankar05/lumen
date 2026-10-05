@@ -45,12 +45,14 @@ $("#start-form").addEventListener("submit", async (ev) => {
   const body = {
     source: f.get("source"),
     layout: f.get("layout"),
+    emit: f.get("emit"),
     duration_s: Number(f.get("duration_s")),
     amplitude: Number(f.get("amplitude")),
     label: f.get("label") || "",
     fullscreen: f.get("fullscreen") === "on",
     save_video: f.get("save_video") === "on",
   };
+  if (body.emit === "virtualcam") body.max_lag_s = 2.0; // the call adds network and buffering delay
   try {
     const { session_id } = await api("/api/sessions", { method: "POST", body: JSON.stringify(body) });
     Object.assign(state, { sessionId: session_id, next: 0, samples: [] });

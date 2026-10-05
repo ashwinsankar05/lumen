@@ -34,6 +34,7 @@ from lumen.record import build_record, load_or_create_key, save_record, sign_rec
 from lumen.regions import REQUIRED, RegionExtractor
 
 VIDEO_NAME = "video.mkv"         # lossless FFV1, frame times in video_timestamps.csv
+EMIT_MODES = ("screen", "virtualcam")
 OPTIONAL_MIN_FRACTION = 0.8      # optional regions are analysed only if present this often
 
 
@@ -49,9 +50,11 @@ class SessionConfig:
     fullscreen: bool = True
     window_size: tuple[int, int] = (1280, 720)
     window_position: tuple[int, int] = (0, 0)
+    emit: str = "screen"           # "screen": this display; "virtualcam": our outgoing call video
+    emit_fps: float | None = None  # None: 60 on screen, 30 into a virtual camera
     fs: float = 30.0
     segment_s: float = 2.0
-    max_lag_s: float = 1.0
+    max_lag_s: float = 1.0         # raised to 2 s in call mode: network and call buffering add delay
     lock_camera: bool = True
     save_video: bool = False
     label: str = ""
@@ -136,6 +139,15 @@ def pose_summary(poses: list) -> dict | None:
     }
 
 
+def default_display(cfg: SessionConfig) -> Display:
+    """The probe output for a session: a full-screen window, or a virtual camera for a call."""
+    if cfg.emit == "virtualcam":
+        from lumen.emitter import VirtualCamDisplay
+
+        return VirtualCamDisplay(size=cfg.window_size, fps=cfg.emit_fps or 30.0)
+    return CvDisplay(fullscreen=cfg.fullscreen, size=cfg.window_size, position=cfg.window_position)
+
+
 def config_from_record(record: dict) -> SessionConfig:
     saved = (record.get("extra") or {}).get("config") or {}
     known = {f.name for f in fields(SessionConfig)}
@@ -174,8 +186,9 @@ class Session:
     ):
         self.cfg = cfg = config or SessionConfig()
         self.source_factory = source_factory
-        self.display_factory = display_factory or (lambda c: CvDisplay(
-            fullscreen=c.fullscreen, size=c.window_size, position=c.window_position))
+        if cfg.emit not in EMIT_MODES:
+            raise ValueError(f"emit must be one of {EMIT_MODES}, not {cfg.emit!r}")
+        self.display_factory = display_factory or default_display
         self.extractor_factory = extractor_factory
         self.thresholds = thresholds if thresholds is not None else load_thresholds(cfg.thresholds_path)
         self.now = now
@@ -226,9 +239,19 @@ class Session:
         processing.start()
 
         self.state = "running"
-        display = self.display_factory(cfg)
         try:
-            outcome = Emitter(self.log, display, now=self.now).run(self._watch(grabber))
+            display = self.display_factory(cfg)
+        except Exception as exc:  # e.g. no virtual camera driver
+            grabber.stop()
+            processing.join(timeout=2.0)
+            source.close()
+            if lock_timer:
+                lock_timer.cancel()
+            return self._finish("error", capture=source.report.to_dict(),
+                                capture_error=f"cannot open the probe output: {exc}", notes=notes)
+        fps = cfg.emit_fps or (30.0 if cfg.emit == "virtualcam" else 60.0)
+        try:
+            outcome = Emitter(self.log, display, fps=fps, now=self.now).run(self._watch(grabber))
         finally:
             notes.extend(getattr(display, "notes", []))
             display.close()

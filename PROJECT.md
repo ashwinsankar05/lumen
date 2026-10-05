@@ -61,6 +61,11 @@ Design decisions:
 2. L3 is the lateral cheek contrast, with its threshold calibrated from genuine sessions only.
 3. Per-sub-region gain maps ("spatial field") are reported as diagnostics, not enforced: they
    depend on room lighting, whereas the lateral contrast is referenced to the screen itself.
+4. Two emit modes. `screen`: the probe fills this laptop's display (subject sits in front of it;
+   the M1 setup and the local demo). `virtualcam`: the probe is our outgoing call video through a
+   virtual camera (pyvirtualcam + OBS driver) and the source is the subject's tile on screen
+   (`pick-region`); this is the real deployment. Call mode searches lags up to 2 s, and
+   calibration learns the sign of the cheek contrast because some call apps mirror video.
 
 Simulation only (`experiments/codec_survival/run.py --synthetic`, 2026-10-05; synthetic 320x240
 scenes, H.264 80–600 kbps and VP8 150–300 kbps, 4:2:0): the probe stays well above the noise
@@ -112,7 +117,7 @@ large. Check that any new native dependency imports on the dev laptop before rel
 src/lumen/
   colour.py      sRGB <-> CIELAB
   probe.py       nonce -> deterministic isoluminant colour sequence(s) + emission log
-  emitter.py     renders the probe (full-screen / window), dithered, logs each presented frame
+  emitter.py     renders the probe (full-screen window or virtual camera), dithered, logs each frame
   capture.py     camera / video-file / screen / MJPEG sources; grabber thread timestamps frames
   regions.py     YuNet -> face, neck, background ROIs and face sub-regions; head pose
   features.py    per-region chroma series -> coherence, differential gain, lateral index
