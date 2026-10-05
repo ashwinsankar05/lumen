@@ -90,6 +90,40 @@ def test_operator_stop_ends_the_session_early(tmp_path, fake_display):
     assert r.verdict.decision == "abstain"  # ~1 s of probe is not enough to decide
 
 
+def test_a_video_that_runs_out_is_labelled_source_ended(tmp_path, fake_display):
+    """Measured case (R1): the replayed file ended before the probe; that is not an operator stop."""
+    from lumen.capture import CaptureReport
+    from lumen.regions import RegionExtractor
+    from lumen.synthetic import FixedDetector
+
+    class ShortVideo:
+        report = CaptureReport(source="file:short")
+
+        def __init__(self):
+            self.n = 0
+
+        def read(self):
+            import time
+
+            time.sleep(1 / 30)
+            self.n += 1
+            if self.n > 60:  # 2 s of frames, then the file ends
+                raise EOFError
+            return np.full((240, 320, 3), 120, np.uint8)
+
+        def lock(self):
+            pass
+
+        def close(self):
+            pass
+
+    r = Session(config(tmp_path, source="file:short", duration_s=10.0), source_factory=lambda s: ShortVideo(),
+                extractor_factory=lambda: RegionExtractor(FixedDetector()),
+                display_factory=lambda c: fake_display()).run()
+    assert r.outcome == "source_ended"
+    assert "ended early (source_ended)" in " ".join(r.notes)
+
+
 def test_split_regions_drops_rare_optional_regions():
     t = np.arange(10.0)
     lab = np.array([60.0, 10.0, 10.0])

@@ -67,7 +67,7 @@ class SessionConfig:
 class SessionResult:
     session_id: str
     label: str
-    outcome: str  # done / stopped / escape / error
+    outcome: str  # done / stopped / escape / source_ended / error
     verdict: Verdict
     features: Features | None
     capture: dict
@@ -287,6 +287,8 @@ class Session:
                 lock_timer.cancel()
         if grabber.error:
             outcome = "error"
+        elif grabber.ended and outcome == "stopped":
+            outcome = "source_ended"  # a video file ran out; nobody pressed stop
 
         self.state = "analysing"
         grabber.stop()
@@ -295,7 +297,7 @@ class Session:
         source.close()
         if grabber.locked_at is not None and grabber.locked_at > self.log.t0:
             notes.append(f"camera lock finished {grabber.locked_at - self.log.t0:.1f} s into the probe")
-        if outcome in ("stopped", "escape"):
+        if outcome in ("stopped", "escape", "source_ended"):
             notes.append(f"session ended early ({outcome})")
         return self._finish(outcome, capture=source.report.to_dict(), capture_error=grabber.error, notes=notes)
 

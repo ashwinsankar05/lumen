@@ -148,3 +148,19 @@ sessions the leave-one-out thresholds fall back to 0.8 x the minimum. The calibr
 (0.50) sits only ~0.04 below the lowest genuine value, so more genuine sessions (other subjects,
 small head movements) are needed before treating its false-reject rate as known. No attack has
 been measured yet.
+
+## 2026-10-05 — M1 replay attack R1
+
+G1's lossless recording played back as the camera (`file:` source, released at its recorded
+frame times, 19.3 fps) while a new one-time split probe ran full screen on the same laptop in the
+same auditorium; no one in front of the camera. Calibrated thresholds from G1–G3 in force.
+Session `20261005-175913-R1-d74a`; the video ran out at 58 s, longest gap-free stretch 53.3 s.
+
+| Neck coh. (today's probe) / floor (K) | Face coh. | Face–neck coh. | Cheek contrast ± SE | Verdict |
+|---|---|---|---|---|
+| **0.094** / 0.078 (51) | — | **0.867** | +0.057 ± 0.065 | **reject** (replay rule) |
+
+Reading: the recorded face and neck still follow each other (0.867, as in G1) but not today's
+probe (neck 0.094, at the noise floor vs 0.87–0.90 genuine), which the SNR gate classifies as a
+replay rather than an abstain. One replay of one recording: the replay rule's threshold
+(face–neck ≥ 0.5) has a wide margin here, but it is still a provisional default, not calibrated.
