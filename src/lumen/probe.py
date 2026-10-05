@@ -230,15 +230,24 @@ class EmissionLog:
     def __len__(self) -> int:
         return len(self._rows)
 
+    def arrays(self) -> tuple[np.ndarray, np.ndarray]:
+        """(t, lab) from one consistent copy of the log.
+
+        Use this while the emitter is still running: reading `t` and `lab` separately can see
+        different numbers of frames, because the emitter appends between the two reads.
+        """
+        rows = list(self._rows)
+        shape = (-1, 2, 3) if self.probe.halves == 2 else (-1, 3)
+        return np.array([r[1] for r in rows]), np.array([r[3:] for r in rows]).reshape(shape)
+
     @property
     def t(self) -> np.ndarray:
-        return np.array([r[1] for r in self._rows])
+        return self.arrays()[0]
 
     @property
     def lab(self) -> np.ndarray:
         """Emitted Lab per frame: (N, 3) single, (N, 2, 3) split."""
-        shape = (-1, 2, 3) if self.probe.halves == 2 else (-1, 3)
-        return np.array([r[3:] for r in self._rows]).reshape(shape)
+        return self.arrays()[1]
 
     @property
     def chroma(self) -> np.ndarray:

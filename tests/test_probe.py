@@ -158,6 +158,30 @@ def test_emission_log_records_each_frame(probe, tmp_path):
         np.testing.assert_array_equal(loaded["b_r"], log.lab[:, 1, 2])
 
 
+def test_emission_log_arrays_stay_consistent_while_emitting(probe):
+    """Regression: the live view read t and lab separately and got different lengths."""
+    import threading
+
+    log = EmissionLog(probe, t0=0.0)
+    stop = threading.Event()
+
+    def emit():
+        t = 0.0
+        while not stop.is_set() and t < probe.duration_s - 0.01:
+            t += 0.001
+            log.emit(t)
+
+    thread = threading.Thread(target=emit)
+    thread.start()
+    try:
+        for _ in range(200):
+            t, lab = log.arrays()
+            assert len(t) == len(lab)
+    finally:
+        stop.set()
+        thread.join()
+
+
 def test_emission_log_rejects_non_increasing_time(probe):
     log = EmissionLog(probe, t0=0.0)
     log.emit(1.0)

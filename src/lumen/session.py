@@ -317,7 +317,7 @@ class Session:
         pose = pose_summary(poses)
         features = None
         if self.log is not None and len(self.log) > 1:
-            features = analyse_capture(self.log.t, self.log.lab, regions_lab, cfg)
+            features = analyse_capture(*self.log.arrays(), regions_lab, cfg)
         verdict = decide(features, self.thresholds, face_fraction=fraction, capture_error=capture_error, pose=pose)
 
         record_path = None
@@ -397,8 +397,9 @@ class Session:
             if len(t):
                 keep = t >= t[-1] - window_s
                 regions_lab, fraction = split_regions(t[keep], [s for s, k in zip(samples, keep) if k])
-                cut = self.log.t >= t[-1] - window_s - self.cfg.max_lag_s - 1
-                f = analyse_capture(self.log.t[cut], self.log.lab[cut], regions_lab,
+                log_t, log_lab = self.log.arrays()  # the emitter is still appending
+                cut = log_t >= t[-1] - window_s - self.cfg.max_lag_s - 1
+                f = analyse_capture(log_t[cut], log_lab[cut], regions_lab,
                                     replace(self.cfg, segment_s=min(self.cfg.segment_s, 2.0)))
                 if f is not None:
                     m = f.measurement
