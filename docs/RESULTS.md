@@ -165,6 +165,30 @@ probe (neck 0.094, at the noise floor vs 0.87–0.90 genuine), which the SNR gat
 replay rather than an abstain. One replay of one recording: the replay rule's threshold
 (face–neck ≥ 0.5) has a wide margin here, but it is still a provisional default, not calibrated.
 
+## 2026-10-06 — Two genuine sessions in another room, judged by the auditorium calibration
+
+Started from the console (45 s, split, amplitude 24), genuine subject, **no lamp**; room, light
+and distance not recorded (the subject sat farther back in the second). Thresholds: the
+auditorium calibration from G1–G3. Sessions `20261006-022130-session-e6e9`,
+`20261006-022307-session-abb5`.
+
+| Session | Face / neck coh. (floor 0.093) | Face/neck lightness (limit 0.997) | Eye distance | Cheek contrast | Verdict |
+|---|---|---|---|---|---|
+| e6e9 | 0.873 / 0.895 | **1.164** | 29.7 px | +0.503 | abstain (lamp gate) |
+| abb5 | 0.617 / 0.667 | **1.277** | **21.8 px** | **+0.265** | abstain (lamp gate) |
+
+Reading:
+
+- **False abstain from an untransferred calibration.** In this room the face is naturally
+  brighter than the neck (1.16–1.28) where in the auditorium it was darker (0.95–0.97), so the
+  lamp gate fired with no lamp. As PROJECT.md says, calibration does not transfer between rooms:
+  recalibrate in the room where verdicts are made.
+- **Distance changes the cheek lean.** Sitting farther back (eye distance 30 → 22 px) roughly
+  halved the cheek contrast (+0.50 → +0.27); with the lamp gate out of the way L3 would have
+  falsely rejected a genuine subject. Added a distance gate: calibration stores 0.85 x the
+  smallest calibration face size (eye distance), and a smaller face abstains ("sit closer").
+  Two sessions, one subject; the size of the effect needs more distances to pin down.
+
 ## 2026-10-05 — Call-mode output: colour through the OBS virtual camera (no subject)
 
 OBS Studio 32.2.2 installed; LUMEN's `VirtualCamDisplay` (pyvirtualcam, 1280x720, 30 fps) fed a

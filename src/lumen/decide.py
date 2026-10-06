@@ -56,6 +56,7 @@ class Thresholds:
     cheek_contrast_min: float | None = None       # L3
     cheek_contrast_sign: int = 1                  # -1 when calibration saw mirrored video
     max_abs_yaw: float | None = None              # 2. pose gate
+    min_ipd_px: float | None = None               # 2. distance gate (face size in the camera)
     face_neck_lightness_max: float | None = None  # 4. lamp gate
 
     def neck_gate(self, noise_floor: float) -> float:
@@ -150,6 +151,15 @@ def decide(
         if not ok:
             return done("abstain", "head turned further than in any calibration session: the light "
                                    "geometry is outside what was measured")
+    # Farther from the screen, both cheeks see it at nearly the same angle and the lean shrinks
+    # (measured 2026-10-06: +0.265 at 22 px eye distance vs +0.50 at 30 px), so a subject much
+    # farther away than in calibration would be falsely rejected by L3: abstain instead.
+    if pose is not None and th.min_ipd_px is not None and pose.get("ipd_px") is not None:
+        ok = pose["ipd_px"] >= th.min_ipd_px
+        checks.append(Check("face_size_px", pose["ipd_px"], f">= {th.min_ipd_px} (eye distance)", ok))
+        if not ok:
+            return done("abstain", "the subject is farther from the screen than in any calibration session "
+                                   "(the face looks smaller): sit closer, about as close as during calibration")
 
     # 3. SNR gate on the neck reference, with the replay test when it fails
     gate = th.neck_gate(m.noise_floor)
@@ -259,6 +269,9 @@ def calibrate(genuine: list[Features], base: Thresholds | None = None,
     if len(measured) >= 3:
         spread = max(p.get("yaw_iqr", 0.0) for p in measured)
         updates["max_abs_yaw"] = round(max(abs(p["yaw"]) for p in measured) + spread + 0.03, 4)
+        sizes = [p["ipd_px"] for p in measured if p.get("ipd_px")]
+        if len(sizes) >= 3:
+            updates["min_ipd_px"] = round(0.85 * min(sizes), 2)
 
     lightness = [f.face_neck_lightness for f in genuine if f.face_neck_lightness is not None]
     if len(lightness) >= 3:

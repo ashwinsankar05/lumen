@@ -88,6 +88,16 @@ def test_abstain_gates(kwargs, extra, needle):
     assert needle in v.reason
 
 
+def test_subject_much_farther_than_calibration_abstains():
+    """Measured case: sitting back shrank the eye distance 30 -> 22 px and the cheek lean to +0.265."""
+    th = calibrate([features(), features(), features()],
+                   poses=[{"yaw": 0.0, "yaw_iqr": 0.02, "ipd_px": p} for p in (29.7, 31.0, 32.3)])
+    assert th.min_ipd_px == pytest.approx(0.85 * 29.7, abs=0.01)
+    v = decide(features(contrast=0.265), th, pose={"yaw": 0.0, "ipd_px": 21.8})
+    assert v.decision == "abstain" and "farther" in v.reason
+    assert decide(features(), th, pose={"yaw": 0.0, "ipd_px": 30.0}).decision == "verify"
+
+
 def test_slow_camera_abstains_and_says_why():
     """Measured on the dev laptop: a dim room drove the webcam to ~10 fps, below Nyquist for 8 Hz."""
     f = features()
