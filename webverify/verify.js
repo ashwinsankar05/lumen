@@ -62,13 +62,18 @@
 
   async function run() {
     const camLabel = $("cam").selectedOptions[0] ? $("cam").selectedOptions[0].textContent : "?";
+    // full screen first: Chrome allows it only straight after the click, before any await
+    const fullscreen = document.documentElement.requestFullscreen().catch(() => {});
     const res = await fetch("/api/sessions", { method: "POST", headers: { "Content-Type": "application/json" },
                                                 body: JSON.stringify({ label: "web" }) });
-    if (!res.ok) { alert(`Could not start: ${(await res.json()).detail || res.status}`); return; }
+    if (!res.ok) {
+      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+      alert(`Could not start: ${(await res.json()).detail || res.status}`); return;
+    }
     const probe = await res.json();
 
     $("intro").hidden = true; $("probe").hidden = false;
-    try { await $("probe").requestFullscreen(); } catch (e) { /* still runs, just not full screen */ }
+    await fullscreen;  // if the browser refused, the probe still runs in the window
 
     const t0 = performance.now() / 1000 + probe.warmup_s;
     const tEnd = t0 + probe.duration_s;

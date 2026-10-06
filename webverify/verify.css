@@ -21,6 +21,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .status.ok { color: var(--accent); } .status.bad { color: var(--bad); }
 .consent { display: block; margin: 14px 0; }
 #probe { position: fixed; inset: 0; display: flex; cursor: none; background: rgb(170, 170, 170); }
+[hidden], #probe[hidden] { display: none !important; }  /* a display rule must not override hidden */
 #probe > #left, #probe > #right { flex: 1; }
 #hud { position: fixed; left: 50%; bottom: 12px; transform: translateX(-50%); font-size: 13px;
   color: rgba(0, 0, 0, 0.45); }
