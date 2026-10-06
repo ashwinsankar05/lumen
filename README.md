@@ -30,6 +30,8 @@ versions is blocked by Windows Application Control on the development laptop.
 
 ## Use
 
+Quickest: double-click **`lumen-demo.cmd`** for a menu of the demo steps (see `docs/RUNBOOK.md`).
+
 ```powershell
 .venv\Scripts\python -m lumen cameras                  # which camera indices open (real + virtual)
 .venv\Scripts\python -m lumen pick-region              # select a video-call tile as the source

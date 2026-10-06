@@ -37,6 +37,14 @@ Copy-Item -Recurse C:\Users\LOQ\lumen-v2\.claude\worktrees\rebuild\data C:\Users
 **OBS Studio** must be installed for call mode only (`winget install OBSProject.OBSStudio`).
 Keep the OBS app **closed** while LUMEN runs; LUMEN drives OBS's virtual camera itself.
 
+## Shortcut: the demo menu
+
+After the one-time setup, **double-click `lumen-demo.cmd`** in `C:\Users\LOQ\lumen-v2` (or run it
+in a terminal). It offers: camera check, genuine session, replay attack (replays the newest saved
+video), lamp test, calibration session, calibrate, verify the newest record, list sessions, and
+the console. Every session asks "ready? (y/n)" first. `lumen-demo.cmd 2` runs option 2 once.
+The sections below are the same steps as typed commands.
+
 ## 2. Check the camera (30 s)
 
 ```powershell
