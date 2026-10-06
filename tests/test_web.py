@@ -107,6 +107,7 @@ def test_frames_arriving_out_of_order_are_put_in_time_order(client):
     assert body["verdict"] == "verify", body["reason"]
     assert any("out of order" in n for n in body["notes"])
     assert not body["deep_check"].startswith("not measurable")
+    assert body["temporal"].split(":")[0] in ("DIRECT", "PIPELINE", "ABSTAIN")
 
 
 def test_time_ordered_fixes_an_unsorted_record():

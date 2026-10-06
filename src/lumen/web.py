@@ -273,12 +273,19 @@ def create_app(*, out_dir: str = "data/web/sessions", thresholds_path: str = "da
             from lumen.deepcheck import DeepThresholds, deep_measures, describe
             from lumen.record import load_record
 
+            from lumen.deepcheck import judge_temporal
+
             th = DeepThresholds.load(deep_thresholds_path) if Path(deep_thresholds_path).exists() else None
             try:
-                deep_line = describe(deep_measures(load_record(r.record_path)), th)
+                m = deep_measures(load_record(r.record_path))
+                deep_line = describe(m, th)
+                tv = judge_temporal(m)
+                temporal_line = f"{tv.decision.upper()}: {tv.reason}"
             except Exception as exc:  # noqa: BLE001  a diagnostic must never cost the verdict
-                deep_line = f"not measurable ({type(exc).__name__}: {exc})"
-        return JSONResponse(_result_payload(r, deep_line))
+                deep_line = temporal_line = f"not measurable ({type(exc).__name__}: {exc})"
+        payload = _result_payload(r, deep_line)
+        payload["temporal"] = temporal_line if r.record_path else None
+        return JSONResponse(payload)
 
     @app.get("/api/sessions/{sid}/record")
     def record(sid: str):

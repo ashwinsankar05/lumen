@@ -145,3 +145,49 @@ def test_live_runs_a_session_then_the_deep_check(tmp_path, monkeypatch, capsys):
     folders = list((tmp_path / "data" / "sessions").iterdir())
     assert len(folders) == 1
     assert main(["check", str(folders[0])]) == 0
+
+
+# --- temporal fidelity (EXPERIMENTAL) -------------------------------------------------------------
+
+from lumen.deepcheck import TEMPORAL_LAG_MAX_S, TEMPORAL_RATIO_MIN, judge_temporal  # noqa: E402
+from lumen.features import PROBE_BAND_HZ, band_mean  # noqa: E402
+
+
+def _neck_ratio(max_late_frames: int, seed=4):
+    """Fast/slow coherence ratio of a neck seen through a pipeline whose output frame shows the
+    input from a random 0..max_late_frames frames earlier (render time varies frame to frame, as in
+    a GPU face swap re-timed by OBS), or directly (max_late_frames = 0)."""
+    t, p, _ = _series({}, seconds=60.0, seed=seed)
+    drive = 0.5 * p[:, :2] + 0.5 * p[:, 2:]
+    rng = np.random.default_rng(seed)
+    idx = np.clip(np.arange(len(t)) - rng.integers(0, max_late_frames + 1, len(t)), 0, None)
+    x = 0.05 * drive[idx] + 0.01 * rng.standard_normal(drive.shape)
+    s = segment_spectra(p, x, 30.0, 60).spectrum()
+    return band_mean(s.f, s.combined, (5.0, 8.0)) / band_mean(s.f, s.combined, (2.0, 4.5))
+
+
+def test_irregular_frame_timing_lowers_the_fast_slow_ratio():
+    """A fixed smoothing filter does not lower coherence (it is predictable); random render delays do."""
+    assert _neck_ratio(0) > 0.9
+    assert _neck_ratio(4) < TEMPORAL_RATIO_MIN
+
+
+def _tm(ratio, lag, emit="screen", neck=0.6):
+    return DeepMeasures("s", 0.5, 0.03, 0.3, 0.03, neck, 0.045, fast_slow_ratio=ratio, lag_s=lag, emit=emit)
+
+
+@pytest.mark.parametrize("m, decision", [
+    (_tm(0.90, 0.10), "direct"),
+    (_tm(0.55, 0.30), "pipeline"),                     # the measured FaceFusion pattern
+    (_tm(0.55, 0.12), "direct"),                       # one sign only
+    (_tm(0.90, 0.40), "direct"),
+    (_tm(0.40, 1.30, emit="virtualcam"), "abstain"),   # through a call: not valid
+    (_tm(0.55, 0.30, neck=0.1), "abstain"),
+])
+def test_judge_temporal(m, decision):
+    assert judge_temporal(m).decision == decision
+
+
+def test_temporal_limits_are_the_ones_fixed_before_new_data():
+    """Fixed 2026-10-07 before any new session (docs/RESULTS.md); changing them needs a new test."""
+    assert (TEMPORAL_RATIO_MIN, TEMPORAL_LAG_MAX_S) == (0.60, 0.25)

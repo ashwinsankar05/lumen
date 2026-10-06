@@ -565,3 +565,22 @@ comes from one laptop's camera only; through Google Meet it does not separate at
 own processing smears every session); a faster GPU or a direct virtual-camera output may shrink
 both effects. A lead for a fourth layer ("temporal fidelity"), not a validated detector; next:
 other webcams for the genuine range, a second generator, thresholds fixed before testing.
+
+### Temporal fidelity: rule and test plan FIXED BEFORE NEW DATA (2026-10-07)
+
+Written and committed before any of the sessions below were recorded; the commit time is the proof.
+Code: `judge_temporal` in `src/lumen/deepcheck.py` (constants pinned by a test).
+
+- **Measures:** neck coherence 5–8 Hz ÷ 2–4.5 Hz ("fast/slow ratio"), and the light-to-video
+  delay estimated from the neck (lag).
+- **Rule:** "pipeline suspected" if ratio < **0.60** AND delay > **0.25 s**; otherwise "direct";
+  abstain if the neck is under max(0.15, 4 × floor) or the session went through a video call.
+- **Mechanism (stated in advance):** a face-swap pipeline renders frames with varying latency and is
+  re-timed to a steady frame rate, which scrambles fast flicker more than slow (simulation: random
+  render delays of 0–3/0–4 frames give 0.31–0.37, the local swap range); and it adds delay.
+- **Test plan, through the verification link, attacker laptop, same seat and light:**
+  1. three sessions with the attacker laptop's **own webcam selected directly** in Chrome
+     (`?label=fw-genuine`): prediction **direct** (a webcam the rule has never seen);
+  2. two sessions through FaceFusion with the **swap on** (`?label=ff-swap2`): prediction **pipeline**;
+  3. two sessions through FaceFusion with the **swap off** (`?label=ff-off2`): prediction **direct**.
+- **Pass:** all seven as predicted. Anything else is reported as it is, and the limits stay as written.

@@ -239,6 +239,45 @@ class DeepMeasures:
     neck_coherence: float
     noise_floor: float
     simulated: bool = False
+    fast_slow_ratio: float | None = None  # neck coherence 5-8 Hz / 2-4.5 Hz (temporal fidelity)
+    lag_s: float | None = None            # light-to-video delay estimated from the neck
+    emit: str = "screen"                  # "virtualcam": through a video call
+
+
+# Temporal fidelity (EXPERIMENTAL, not part of any verdict). A real face reflects the probe at once,
+# so the neck follows the fast half of the band nearly as well as the slow half, and the delay is the
+# camera's; a face-swap pipeline renders every frame, adding delay and smearing fast changes.
+# Found after the fact in the link swap test and confirmed on the earlier local swap records
+# (docs/RESULTS.md, 2026-10-07): swap 0.29-0.57 and 0.30-0.33 s; swap off 0.61-0.80 and <= 0.17 s;
+# direct webcam 0.83-0.97 and <= 0.13 s. The limits below were FIXED ON 2026-10-07, BEFORE any new
+# session, so the next sessions test them rather than fit them. Do not move them after seeing data.
+FAST_BAND_HZ, SLOW_BAND_HZ = (5.0, 8.0), (2.0, 4.5)
+TEMPORAL_RATIO_MIN = 0.60
+TEMPORAL_LAG_MAX_S = 0.25
+
+
+@dataclass(frozen=True)
+class TemporalVerdict:
+    decision: str   # "pipeline" (suspected) | "direct" | "abstain"
+    reason: str
+
+
+def judge_temporal(m: DeepMeasures | None, neck_floor_multiple: float = 4.0) -> TemporalVerdict:
+    """EXPERIMENTAL: does the video look like it went through a slow, smearing pipeline?"""
+    if m is None or m.fast_slow_ratio is None or m.lag_s is None:
+        return TemporalVerdict("abstain", "not measurable")
+    if m.emit == "virtualcam":
+        return TemporalVerdict("abstain", "not valid through a video call (the call smears every session)")
+    if m.neck_coherence < max(0.15, neck_floor_multiple * m.noise_floor):
+        return TemporalVerdict("abstain", "probe too weak at the neck")
+    slow = m.fast_slow_ratio < TEMPORAL_RATIO_MIN
+    late = m.lag_s > TEMPORAL_LAG_MAX_S
+    if slow and late:
+        return TemporalVerdict("pipeline", f"fast flicker lost (ratio {m.fast_slow_ratio:.2f} < "
+                                           f"{TEMPORAL_RATIO_MIN}) and delayed ({m.lag_s:.2f} s > "
+                                           f"{TEMPORAL_LAG_MAX_S} s): a processing pipeline is suspected")
+    return TemporalVerdict("direct", f"ratio {m.fast_slow_ratio:.2f}, delay {m.lag_s:.2f} s: "
+                                     + ("one of two signs only" if slow or late else "consistent with a direct camera"))
 
 
 def deep_measures(record: dict, *, max_gap_s: float = 0.5, n_blocks: int = 6) -> DeepMeasures | None:
@@ -273,11 +312,15 @@ def deep_measures(record: dict, *, max_gap_s: float = 0.5, n_blocks: int = 6) ->
         loo = [relief(segs, keep) for keep in jackknife_blocks(k, n_blocks)]
         rel_se = jackknife_se(loo) if all(v is not None for v in loo) else None
 
+    slow_coh = float(band_mean(neck.f, neck.combined, SLOW_BAND_HZ))
+    fast_coh = float(band_mean(neck.f, neck.combined, FAST_BAND_HZ))
     return DeepMeasures(
         session=record.get("session_id", "?"),
         cheek_contrast=cheek, cheek_contrast_se=cheek_se, relief=rel, relief_se=rel_se,
         neck_coherence=float(band_mean(neck.f, neck.combined)), noise_floor=neck.noise_floor,
         simulated=bool(record.get("capture", {}).get("simulated")),
+        fast_slow_ratio=fast_coh / slow_coh if slow_coh > 0 else None, lag_s=float(a.lag_s),
+        emit=str(cfg.emit),
     )
 
 

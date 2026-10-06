@@ -223,7 +223,8 @@
     $("checks").innerHTML = (r.checks || []).map(c =>
       `<tr><td>${c.name}</td><td>${fmt(c.value)}</td><td class="${c.passed === true ? "pass" : c.passed === false ? "fail" : "na"}">` +
       `${c.passed === true ? "pass" : c.passed === false ? "FAIL" : "n/a"}</td><td class="small">${c.threshold}</td></tr>`).join("");
-    $("deep").textContent = r.deep_check ? `Deep check (3D relief + lean): ${r.deep_check}` : "";
+    $("deep").textContent = (r.deep_check ? `Deep check (3D relief + lean): ${r.deep_check}` : "") +
+      (r.temporal ? `  |  Temporal check (EXPERIMENTAL, not part of the verdict): ${r.temporal}` : "");
     $("meta").textContent = r.session_id ? `Session ${r.session_id}: ${r.frames} frames at ${fmt(r.capture_fps)} fps, face found in ${Math.round(100 * (r.face_fraction || 0))}%.` : "";
     if (r.record) { $("download").href = r.record; $("download").hidden = false; }
   }
