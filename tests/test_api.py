@@ -43,7 +43,11 @@ def test_health_config_and_console(client):
     assert client.get("/api/config").json()["layout"] == "split"
     page = client.get("/")
     assert page.status_code == 200 and "LUMEN" in page.text
-    assert client.get("/static/app.js").status_code == 200
+    script = client.get("/static/app.js")
+    assert script.status_code == 200
+    assert script.headers["cache-control"] == "no-cache"  # never reuse a stale script after an update
+    assert page.headers["cache-control"] == "no-cache"
+    assert "app.js?v=" in page.text and "style.css?v=" in page.text
 
 
 def test_session_record_verify_and_listing(client):

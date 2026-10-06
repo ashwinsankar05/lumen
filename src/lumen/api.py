@@ -181,6 +181,15 @@ def create_app(base: SessionConfig | None = None,
         Path(base.thresholds_path).unlink(missing_ok=True)
         return Thresholds().to_dict()
 
+    @app.middleware("http")
+    async def revalidate_console(request, call_next):
+        # Browsers otherwise reuse a cached app.js / style.css after an update, pairing an old
+        # script with the new page (seen 2026-10-06: "Cannot set properties of null").
+        response = await call_next(request)
+        if request.url.path == "/" or request.url.path.startswith("/static/"):
+            response.headers["Cache-Control"] = "no-cache"
+        return response
+
     @app.exception_handler(ValueError)
     def value_error(_, exc: ValueError):
         return JSONResponse(status_code=422, content={"detail": str(exc)})
