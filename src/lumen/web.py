@@ -334,6 +334,35 @@ def ensure_certificate(cert_path: Path, key_path: Path, ips: list[str]) -> None:
     cert_path.write_bytes(cert.public_bytes(serialization.Encoding.PEM))
 
 
+def calibrate_web(sessions_dir: str | Path = "data/web/sessions", n: int = 3,
+                  thresholds_path: str = "data/thresholds-web.json",
+                  deep_path: str = "data/web/deep_thresholds.json") -> list[str]:
+    """Calibrate L1-L3 and the deep check from the n newest genuine web sessions (genuine only)."""
+    from lumen.decide import calibrate
+    from lumen.deepcheck import calibrate_deep, deep_measures
+    from lumen.record import load_record
+    from lumen.session import reanalyse
+
+    found = sorted((d for d in Path(sessions_dir).glob("*-web-genuine-*") if (d / "record.json").exists()),
+                   reverse=True)[:n]
+    if len(found) < n:
+        raise SystemExit(f"need {n} genuine web sessions (open the link with ?label=genuine), found {len(found)}")
+    recs = [load_record(d / "record.json") for d in sorted(found)]
+    if any(r.get("capture", {}).get("simulated") for r in recs):
+        raise SystemExit("refusing to calibrate from simulated sessions")
+    feats = [reanalyse(r) for r in recs]
+    if any(f is None for f in feats):
+        raise SystemExit("a genuine session has too little data to calibrate from; record another")
+    th = calibrate(feats, poses=[(r.get("extra") or {}).get("pose_summary") for r in recs])
+    th.save(thresholds_path)
+    deep = calibrate_deep([deep_measures(r) for r in recs])
+    deep.save(deep_path)
+    return [d.name for d in sorted(found)] + [
+        f"L1-L3 -> {thresholds_path}: cheek contrast >= {th.cheek_contrast_min}, face/neck >= "
+        f"{th.face_to_neck_coherence_min}, gain in {list(th.gain_range)}",
+        f"deep check -> {deep_path}: lean >= {deep.contrast_min}, relief >= {deep.relief_min}"]
+
+
 def main(argv: list[str] | None = None) -> int:
     import argparse
     import sys
@@ -347,9 +376,15 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--amplitude", type=float, default=34.0)
     p.add_argument("--thresholds", default="data/thresholds-web.json", help="L1-L3 calibration of the web path")
     p.add_argument("--no-video", action="store_true", help="do not save the received video")
+    p.add_argument("--calibrate", action="store_true",
+                   help="calibrate L1-L3 and the deep check from the 3 newest ?label=genuine sessions, then exit")
     a = p.parse_args(argv)
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", line_buffering=True)
+    if a.calibrate:
+        for line in calibrate_web(thresholds_path=a.thresholds):
+            print(line)
+        return 0
 
     app = create_app(thresholds_path=a.thresholds, duration_s=a.duration, amplitude=a.amplitude,
                      save_video=not a.no_video)

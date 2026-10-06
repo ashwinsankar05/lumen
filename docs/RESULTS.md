@@ -465,3 +465,23 @@ stated prediction, not a validated detector. Next: more swap and swap-off sessio
 - The two swap sessions judged by the dev-laptop pool's calibration (lean ≥ +0.3551, relief ≥
   0.2002): both swap. Confounded: different laptop, camera and screen from the swap sessions, so
   this is not evidence that one calibration transfers between machines.
+
+## 2026-10-07 — Verification link: first genuine session through the browser (W1)
+
+- Hardware: dev laptop, Chrome, `http://localhost:8443` (`python -m lumen.web --http`), Integrated
+  Camera through `getUserMedia`, 640x480, JPEG quality 0.92 uploads; display at 144 Hz (12 959 probe
+  frames drawn in 90 s).
+- Conditions: one subject, the auditorium at night (decorative lights behind), ~40 cm, facing the
+  screen, split probe, amplitude 34, 90 s. Auto exposure first gave 10 fps; the page's exposure
+  tuning (longest exposure that still gives >= 20 fps) brought it to 19–21 fps. Exposure and white
+  balance otherwise automatic (browser).
+- Session: 20261006-200335-web-aba1 (UTC id). Signature valid; every drawn colour regenerated from
+  the nonce on the server.
+
+| Neck coh. | Face coh. | Floor (K) | Gain | Cheek contrast | Relief | Lag | fps | Verdict |
+|---|---|---|---|---|---|---|---|---|
+| 0.691 | 0.794 | 0.045 (88) | 1.552 | +0.560 | 0.201 | 0.100 s | 19.1 | verify (provisional: web path not calibrated) |
+
+The probe survives the browser path: neck 15x the floor, and the cheek contrast (+0.560) is in the
+range of the local sessions on this laptop (+0.40 to +0.59). One earlier attempt
+(20261006-195914-web-9070) ran with the first, fixed exposure that left the picture nearly black: face found in 0.9 % of frames, abstained ("not enough data to measure").

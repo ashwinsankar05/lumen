@@ -136,8 +136,10 @@
     const camLabel = $("cam").selectedOptions[0] ? $("cam").selectedOptions[0].textContent : "?";
     // full screen first: Chrome allows it only straight after the click, before any await
     const fullscreen = document.documentElement.requestFullscreen().catch(() => {});
+    // ?label=genuine marks a genuine calibration session; ?label=swap-on etc. tags test sessions
+    const tag = new URLSearchParams(location.search).get("label");
     const res = await fetch("/api/sessions", { method: "POST", headers: { "Content-Type": "application/json" },
-                                                body: JSON.stringify({ label: "web" }) });
+                                                body: JSON.stringify({ label: tag ? `web-${tag}` : "web" }) });
     if (!res.ok) {
       if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
       alert(`Could not start: ${(await res.json()).detail || res.status}`); return;
