@@ -7,7 +7,8 @@
   const MAX_IN_FLIGHT = 24;
   const JPEG_QUALITY = 0.92;
 
-  let stream = null, preflightOk = false, speedTried = false, speedNote = "";
+  let stream = null, preflightOk = false, speedTried = false, speedNote = "", exposureBright = null;
+  const MIN_BRIGHT = 20;  // mean picture brightness (0-255) below which a face is not reliably found
 
   // Frame rate and brightness (mean of the small preview, 0-255) over `ms` milliseconds.
   function measureCamera(ms) {
@@ -40,30 +41,36 @@
       return "this camera does not let the browser set its exposure";
     }
     const r = caps.exposureTime, lo = Math.max(r.min, 1e-3), hi = r.max;
-    const set = async x => {
-      await track.applyConstraints({ advanced: [{ exposureMode: "manual", exposureTime: x }] });
-      await new Promise(res => setTimeout(res, 350));
-      return measureCamera(900);
+    // Cameras take a while to apply a new exposure: settle, then measure. Every setting is
+    // measured (no early stop), so one misleading reading cannot pick a dark setting.
+    const apply = async setting => {
+      const c = setting === "auto" ? { exposureMode: "continuous" }
+                                   : { exposureMode: "manual", exposureTime: setting };
+      await track.applyConstraints({ advanced: [c] });
+      await new Promise(res => setTimeout(res, 900));
+      return measureCamera(1200);
     };
     try {
-      const steps = 8;
-      let slow = null, fast = null, fastM = null;
-      for (let i = 0; i < steps && fast === null; i++) {   // longest first, log-spaced
+      const steps = 7, tried = [];
+      for (let i = 0; i < steps; i++) {                   // log-spaced, long to short
         const x = hi * Math.pow(lo / hi, i / (steps - 1));
-        status.textContent = `Tuning the camera (${i + 1}/${steps})…`;
-        const m = await set(x);
-        if (m.fps >= FAST_ENOUGH) { fast = x; fastM = m; } else slow = x;
+        status.textContent = `Tuning the camera (${i + 1}/${steps + 2})…`;
+        tried.push({ setting: x, ...(await apply(x)) });
       }
-      if (fast === null) return "even the shortest exposure is too slow";
-      for (let j = 0; j < 3 && slow !== null; j++) {       // refine between too slow and fast enough
-        const mid = Math.sqrt(slow * fast);
-        status.textContent = `Tuning the camera (fine ${j + 1}/3)…`;
-        const m = await set(mid);
-        if (m.fps >= FAST_ENOUGH) { fast = mid; fastM = m; } else slow = mid;
-      }
-      await set(fast);
-      const dark = fastM.bright < 45 ? "; the picture is dark: add light on your face" : "";
-      return `exposure tuned: ${fastM.fps.toFixed(0)} fps, brightness ${fastM.bright.toFixed(0)}/255${dark}`;
+      // automatic exposure resumed from a short setting: on the dev laptop's webcam this kept a
+      // fast frame rate natively (capture.py), so it is a candidate too
+      status.textContent = `Tuning the camera (${steps + 1}/${steps + 2})…`;
+      await apply(lo);
+      tried.push({ setting: "auto", ...(await apply("auto")) });
+      console.table(tried);
+      const fast = tried.filter(m => m.fps >= FAST_ENOUGH);
+      const best = fast.length ? fast.reduce((a, b) => (b.bright > a.bright ? b : a))
+                               : tried.reduce((a, b) => (b.fps > a.fps ? b : a));
+      status.textContent = `Tuning the camera (${steps + 2}/${steps + 2})…`;
+      const m = await apply(best.setting);               // re-apply and confirm
+      exposureBright = m.bright;
+      const which = best.setting === "auto" ? "automatic exposure" : "fixed exposure";
+      return `${which}: ${m.fps.toFixed(0)} fps, brightness ${m.bright.toFixed(0)}/255`;
     } catch (e) {
       return `could not set the exposure (${e.name})`;
     }
@@ -123,6 +130,7 @@
         return;
       }
       if (fps < 16) { status.className = "status bad"; status.textContent = `Camera too slow (${fps.toFixed(0)} fps, needs 16; ${speedNote}): add light on your face or pick another camera.`; }
+      else if (exposureBright !== null && exposureBright < MIN_BRIGHT) { status.className = "status bad"; status.textContent = `Too dark to see a face (${speedNote}): add light on your face from the front, then reload the page.`; }
       else if (live < 0.3) { status.className = "status bad"; status.textContent = "The camera picture looks frozen: check the camera source."; }
       else { status.className = "status ok"; status.textContent = `Camera OK: ${fps.toFixed(0)} fps, ${v.videoWidth}x${v.videoHeight}${speedTried ? ` (${speedNote})` : ""}.`; preflightOk = true; }
       updateStart();
@@ -221,7 +229,7 @@
   }
 
   $("ready").addEventListener("change", updateStart);
-  $("cam").addEventListener("change", async () => { await openCamera($("cam").value); speedTried = false; preflight(); });
+  $("cam").addEventListener("change", async () => { await openCamera($("cam").value); speedTried = false; exposureBright = null; preflight(); });
   $("start").addEventListener("click", () => { $("start").disabled = true; run().catch(e => showResult({ verdict: "error", reason: String(e) })); });
   $("again").addEventListener("click", () => { $("result").hidden = true; $("intro").hidden = false; $("ready").checked = false; preflight(); });
 
