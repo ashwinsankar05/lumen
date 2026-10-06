@@ -13,6 +13,7 @@ if not exist "%PY%" (
   exit /b 1
 )
 set "EMPTY=0"
+set RELAY_FILE=data\relay.txt
 
 echo.
 echo Which camera? 0 = this laptop's webcam. For a face-swap test, the OBS Virtual Camera index
@@ -30,11 +31,18 @@ echo.
 echo ================= LUMEN deep check (3D relief + lean) =================
 echo  Camera: camera:%CAM% %LOCK%
 if exist "%DEEP%" ( echo  Deep check calibrated: %DEEP% ) else ( echo  Deep check NOT calibrated yet: options 1 x3, then 2 )
+set "SEND="
+if exist "%RELAY_FILE%" (
+  set /p RELAY=<"%RELAY_FILE%"
+  for /f "tokens=1,2" %%A in ("!RELAY!") do set "SEND=--send-to %%A --token %%B"
+  echo  Sending every session to: !RELAY!
+)
 echo -----------------------------------------------------------------------
 echo  1  Genuine calibration session   (8 s grey + 90 s probe, saves video)
 echo  2  Calibrate from the 3 newest genuine calibration sessions
 echo  3  Live check                    (8 s grey + 90 s probe: L1-L3 verdict + deep check)
 echo  4  Deep-check the newest session again
+echo  5  Send sessions to another laptop  (its lumen-receiver.cmd shows address + token)
 echo  0  Quit
 echo =======================================================================
 set "choice="
@@ -49,6 +57,7 @@ if "%choice%"=="1" goto genuine
 if "%choice%"=="2" goto calibrate
 if "%choice%"=="3" goto live
 if "%choice%"=="4" goto again
+if "%choice%"=="5" goto relay
 if "%choice%"=="0" exit /b 0
 goto menu
 
@@ -61,7 +70,7 @@ exit /b 0
 :genuine
 echo A REAL face (for a swap test: the same path with the swap switched OFF).
 call :ready || goto menu
-"%PY%" -m lumen.deepcheck live --source camera:%CAM% %LOCK% --label deep-genuine --save-video --deep-thresholds "%DEEP%"
+"%PY%" -m lumen.deepcheck live --source camera:%CAM% %LOCK% --label deep-genuine --save-video --deep-thresholds "%DEEP%" !SEND!
 goto menu
 
 :calibrate
@@ -73,9 +82,22 @@ call :ready || goto menu
 set "lbl="
 set /p lbl=Label (e.g. deep-swap-on, deep-swap-off; Enter = deep-check):
 if not defined lbl set "lbl=deep-check"
-"%PY%" -m lumen.deepcheck live --source camera:%CAM% %LOCK% --label "!lbl!" --save-video --deep-thresholds "%DEEP%"
+"%PY%" -m lumen.deepcheck live --source camera:%CAM% %LOCK% --label "!lbl!" --save-video --deep-thresholds "%DEEP%" !SEND!
 goto menu
 
 :again
 "%PY%" -m lumen.deepcheck check --latest 1 --thresholds "%DEEP%"
+goto menu
+
+:relay
+set "addr="
+set /p addr=Receiver address as shown on the other laptop (e.g. http://192.168.1.20:8765):
+if not defined addr goto menu
+set "tok="
+set /p tok=Token shown on the other laptop:
+"%PY%" -m lumen.relay ping --to !addr! --token !tok!
+if errorlevel 1 ( echo Not saved: fix the address/token, or allow Python through the other laptop's firewall. & goto menu )
+> "%RELAY_FILE%" echo !addr! !tok!
+echo Saved: every session from now on is sent automatically. Resend older ones with:
+echo   %PY% -m lumen.relay send --to !addr! --token !tok! --latest 3
 goto menu

@@ -150,6 +150,17 @@ then:
    only when both the cheek lean and the 3D relief are below the genuine range.
 4. Deep-check the newest session again.
 
+**Sessions from another laptop, automatically (lab mode).** On this laptop double-click
+**`lumen-receiver.cmd`**: it prints an address (`http://<ip>:8765`) and a token (allow Python on
+private networks if Windows asks). On the other laptop, `lumen-deepcheck.cmd` option **5** takes
+that address and token, tests the connection and saves it; from then on every session is sent
+when it ends. The receiver checks the token and the signature, pins the sender's key, saves to
+`data\remote\`, calibrates itself from the first three sessions labelled `deep-genuine`, and
+judges the rest (`data\remote\results.md`). Both laptops must be on the same network (some
+college Wi-Fi blocks laptop-to-laptop traffic; a phone hotspot works). Lab mode only: the
+sending laptop does the measuring, so it is for a cooperating teammate, not for verifying a
+stranger.
+
 Command line: `python -m lumen.deepcheck live|calibrate|check` (`--help` on each). Reproduce the
 measured results: `python experiments/deepcheck/evaluate.py --help`. Measured: docs/RESULTS.md
 (promising on two FaceFusion sessions, thin margins; not validated through a video call).

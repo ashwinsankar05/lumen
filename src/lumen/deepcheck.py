@@ -418,6 +418,9 @@ def main(argv: list[str] | None = None) -> int:
     lv.add_argument("--no-lock", action="store_true", help="leave camera auto-exposure alone (virtual cameras)")
     lv.add_argument("--thresholds", default="data/thresholds.json", help="L1-L3 calibration")
     lv.add_argument("--deep-thresholds", default="data/deep_thresholds.json")
+    lv.add_argument("--send-to", help="also send the record to a relay receiver, e.g. http://192.168.1.20:8765 "
+                                      "(lab mode, see lumen/relay.py)")
+    lv.add_argument("--token", help="the receiver's token (with --send-to)")
 
     c = sub.add_parser("calibrate", help="bounds from GENUINE sessions only")
     c.add_argument("records", nargs="*", help="session folders or record files")
@@ -449,6 +452,16 @@ def main(argv: list[str] | None = None) -> int:
         th = DeepThresholds.load(a.deep_thresholds) if Path(a.deep_thresholds).exists() else None
         m = deep_measures(_load(r.record_path)) if r.record_path else None
         print(f"\n  DEEP CHECK (3D relief + lean): {describe(m, th)}")
+        if a.send_to and r.record_path:
+            from lumen.relay import send_record
+
+            reply = send_record(a.send_to, a.token or "", r.record_path)
+            if "error" in reply:
+                print(f"\n  NOT SENT to {a.send_to}: {reply['error']} {reply.get('problems', '')}")
+                print("  (the record is saved here; resend later with python -m lumen.relay send ...)")
+            else:
+                print(f"\n  SENT to {a.send_to}. Receiver's deep check: {reply['deep']}"
+                      + (f" ({reply['note']})" if reply.get("note") else ""))
         return 0
 
     paths = [Path(x) for x in a.records]
