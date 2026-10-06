@@ -25,7 +25,7 @@ if defined ARG (
 echo.
 echo ================= LUMEN demo =================
 echo  1  Check the camera            (8 s grey + 30 s probe)
-echo  2  Genuine session             (8 s grey + 30 s probe)  expect VERIFY
+echo  2  Genuine session             (8 s grey + 60 s probe)  expect VERIFY
 echo  3  Replay attack               (replays the newest saved video)  expect REJECT
 echo  4  Lamp test                   (torch on the face, from the front)  expect ABSTAIN
 echo  5  Record a calibration session (60 s, saves video)
