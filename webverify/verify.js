@@ -7,7 +7,26 @@
   const MAX_IN_FLIGHT = 24;
   const JPEG_QUALITY = 0.92;
 
-  let stream = null, preflightOk = false;
+  let stream = null, preflightOk = false, speedTried = false, speedNote = "";
+
+  // A dim room makes auto exposure lengthen each frame (the dev laptop's webcam drops to ~10 fps,
+  // below the 16 the 8 Hz probe needs). Where the camera allows it, fix a short exposure instead,
+  // as capture.py does for local cameras. Returns a note for the status line.
+  async function shortenExposure() {
+    const track = stream && stream.getVideoTracks()[0];
+    const caps = track && track.getCapabilities ? track.getCapabilities() : {};
+    if (!caps.exposureMode || !caps.exposureMode.includes("manual") || !caps.exposureTime) {
+      return "this camera does not let the browser set its exposure";
+    }
+    const r = caps.exposureTime;               // units of 100 microseconds (Image Capture spec)
+    const target = Math.min(r.max, Math.max(r.min, 250));  // 25 ms: room for 30 fps
+    try {
+      await track.applyConstraints({ advanced: [{ exposureMode: "manual", exposureTime: target }] });
+      return `exposure fixed at ${(target / 10).toFixed(1)} ms`;
+    } catch (e) {
+      return `could not set the exposure (${e.name})`;
+    }
+  }
 
   async function openCamera(deviceId) {
     if (stream) stream.getTracks().forEach(t => t.stop());
@@ -50,9 +69,15 @@
       prev = px.slice(); n++;
       if (performance.now() - t0 < 2500) { v.requestVideoFrameCallback(tick); return; }
       const fps = n / 2.5, live = changed / Math.max(1, n - 1);
-      if (fps < 16) { status.className = "status bad"; status.textContent = `Camera too slow (${fps.toFixed(0)} fps, needs 16): add light or pick another camera.`; }
+      if (fps < 16 && !speedTried) {
+        speedTried = true;
+        status.textContent = `Camera at ${fps.toFixed(0)} fps; trying a shorter exposure…`;
+        shortenExposure().then(note => { speedNote = note; setTimeout(preflight, 800); });
+        return;
+      }
+      if (fps < 16) { status.className = "status bad"; status.textContent = `Camera too slow (${fps.toFixed(0)} fps, needs 16; ${speedNote}): add light on your face or pick another camera.`; }
       else if (live < 0.3) { status.className = "status bad"; status.textContent = "The camera picture looks frozen: check the camera source."; }
-      else { status.className = "status ok"; status.textContent = `Camera OK: ${fps.toFixed(0)} fps, ${v.videoWidth}x${v.videoHeight}.`; preflightOk = true; }
+      else { status.className = "status ok"; status.textContent = `Camera OK: ${fps.toFixed(0)} fps, ${v.videoWidth}x${v.videoHeight}${speedTried ? ` (${speedNote})` : ""}.`; preflightOk = true; }
       updateStart();
     }
     v.requestVideoFrameCallback(tick);
@@ -147,7 +172,7 @@
   }
 
   $("ready").addEventListener("change", updateStart);
-  $("cam").addEventListener("change", async () => { await openCamera($("cam").value); preflight(); });
+  $("cam").addEventListener("change", async () => { await openCamera($("cam").value); speedTried = false; preflight(); });
   $("start").addEventListener("click", () => { $("start").disabled = true; run().catch(e => showResult({ verdict: "error", reason: String(e) })); });
   $("again").addEventListener("click", () => { $("result").hidden = true; $("intro").hidden = false; $("ready").checked = false; preflight(); });
 
