@@ -61,7 +61,12 @@ auditorium, laptop webcam, local screen probe; details in `docs/RESULTS.md`):**
   once lighting drifted). A live FaceFusion swap was **not verified in 2 of 2 attempts** (abstain,
   then reject by the replay rule), and in both matched pairs the swap's cheek lean was lower
   (+0.43 → +0.33, +0.31 → +0.19, ~1.6 SE each). **Not yet conclusive for L3**: weak signal and
-  drifting conditions. Next: the same swap test locally on the attacker laptop, without Meet.
+  drifting conditions.
+- Local swap test on the attacker laptop (2026-10-06; webcam → FaceFusion → OBS Virtual Camera,
+  probe full screen, swap toggled between sessions): **the swap was verified in 2 of 2 sessions;
+  LUMEN did not detect it.** The swap lowered the cheek lean (off +0.42 to +0.53, n = 5; on
+  +0.34 and +0.35, n = 2; about −29 %), but stayed above the genuine-only L3 bound (+0.28).
+  FaceFusion keeps about 70 % of the lean: the L3 hypothesis holds only partly for it.
 
 Design decisions:
 

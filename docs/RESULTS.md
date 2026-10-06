@@ -334,3 +334,48 @@ flattened the cheek lean. L1 and L3 would both have **falsely rejected this genu
 the lamp gate (face lit more strongly relative to the neck than in any calibration session)
 abstained first, as designed. One lamp position: a side lamp (L2) is the harder case still to
 measure.
+
+## 2026-10-06 — Live face swap, local, swap on/off through the same path (FaceFusion + OBS)
+
+- Hardware: the attacker's laptop (Windows, its own webcam -> FaceFusion live swap in a Chrome
+  window -> OBS Window Capture -> OBS Virtual Camera -> LUMEN `camera:1`). LUMEN ran on the same
+  laptop with the probe full screen on its display (emit `screen`), so no video call and no codec
+  beyond OBS.
+- Conditions: one subject, same seat, facing the screen, split probe, amplitude 34, 90 s per
+  session, room light not controlled beyond "steady". Exposure left on auto (virtual camera).
+- Protocol: `experiments/swap_local/protocol.py`. Only FaceFusion's swap was toggled between
+  sessions; CF = swap off, CS = swap on, alternated CF1 CF2 CF3 | CS1 CF4 CS2 CF5. L3 threshold
+  calibrated from CF1–CF3 only (genuine sessions through the same path).
+- Results as reported by the protocol on the attacker laptop (table transcribed from its output;
+  the records are on that laptop and not yet copied here). Noise floor 0.045 throughout.
+
+| Session | Swap | Video fps | Face / neck coh. | Cheek R / L | Cheek contrast ± SE | Verdict |
+|---|---|---|---|---|---|---|
+| CF1 | off | 24.9 | 0.311 / 0.293 | 0.222 / −0.286 | +0.508 ± 0.051 | verify |
+| CF2 | off | 23.1 | 0.392 / 0.399 | 0.129 / −0.399 | +0.527 ± 0.034 | verify |
+| CF3 | off | 23.8 | 0.302 / 0.241 | 0.185 / −0.236 | +0.422 ± 0.026 | verify |
+| CS1 | **ON** | 24.7 | 0.272 / 0.261 | 0.080 / −0.259 | +0.339 ± 0.015 | **verify** |
+| CF4 | off | 28.4 | 0.385 / 0.364 | 0.205 / −0.246 | +0.451 ± 0.045 | verify |
+| CS2 | **ON** | 24.0 | 0.327 / 0.316 | 0.156 / −0.192 | +0.349 ± 0.047 | **verify** |
+| CF5 | off | 27.1 | 0.692 / 0.694 | 0.196 / −0.305 | +0.501 ± 0.029 | verify |
+
+**Result: the live swap was verified in 2 of 2 sessions. LUMEN did not detect it.** The L3 bound
+calibrated from CF1–CF3 was +0.282 (+0.308 if all five swap-off sessions are used); both swap
+sessions were above it.
+
+What the swap did change: the cheek lean was lower in every swap session than in every swap-off
+session (off +0.422 to +0.527, mean +0.482, n = 5; on +0.339 and +0.349, n = 2), a drop of about
+29 %. Against the neighbouring swap-off sessions: CS1 −0.083 (2.8 SE) and −0.112 (2.4 SE); CS2
+−0.102 (1.6 SE) and −0.152 (2.8 SE).
+
+Reading: FaceFusion keeps most of the lateral shading of the camera frame (about 70 % of the
+genuine lean), so the L3 hypothesis "a swap has no physical reason to reproduce the lean" holds
+only partly for this generator: the lean is weakened, not removed. The gap between the two
+groups (0.07) is smaller than the spread of genuine sessions allows a genuine-only threshold to
+use. A threshold placed between them would be fitted to attack data, which PROJECT.md rules out,
+so none is set. L1 and L2 also pass the swap: face and neck respond together in plausible
+proportions, as expected when the generator inherits the frame's colour.
+
+Not settled by this run: n = 2 swap sessions, one subject, one generator. What would change the
+picture: more genuine sessions per subject (a tighter spread raises the bound), a stronger
+lateral probe (higher amplitude, or the subject closer to the screen), and other generators.
