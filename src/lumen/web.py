@@ -431,8 +431,8 @@ def main(argv: list[str] | None = None) -> int:
         print(report_web(a.report, thresholds_path=a.thresholds, deep_path=a.deep_thresholds))
         return 0
 
-    app = create_app(thresholds_path=a.thresholds, duration_s=a.duration, amplitude=a.amplitude,
-                     save_video=not a.no_video)
+    app = create_app(thresholds_path=a.thresholds, deep_thresholds_path=a.deep_thresholds,
+                     duration_s=a.duration, amplitude=a.amplitude, save_video=not a.no_video)
     if a.http:
         print(f"LUMEN verification link: http://localhost:{a.port}  (this laptop only)")
         uvicorn.run(app, host="127.0.0.1", port=a.port, log_level="warning")
