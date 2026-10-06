@@ -122,6 +122,12 @@ Ctrl+C in PowerShell stops the server.
 
 ## 7. Call mode (verifying someone on Google Meet)
 
+**Shortcut: `lumen-call.cmd`** (double-click; separate from the demo menu). It prints the
+checklist below, then: **1** selects the other person's tile (15 s to minimise the window, the
+region is saved in `data\call_region.txt`), **2** runs a call session after asking whether they
+are ready (15 s to bring Meet back, then 8 s grey + 90 s probe at amplitude 34, judged with
+`data\thresholds-call.json`), **3** verifies the newest record.
+
 Full setup with an attacker laptop: `docs/SWAP_SETUP.md`. In short, on the verifier laptop:
 
 1. OBS app closed. In Meet: camera **OBS Virtual Camera**, effects off.
