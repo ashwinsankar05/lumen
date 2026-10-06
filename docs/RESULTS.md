@@ -379,3 +379,30 @@ proportions, as expected when the generator inherits the frame's colour.
 Not settled by this run: n = 2 swap sessions, one subject, one generator. What would change the
 picture: more genuine sessions per subject (a tighter spread raises the bound), a stronger
 lateral probe (higher amplitude, or the subject closer to the screen), and other generators.
+
+## 2026-10-06 — Deep check, first candidates for catching the live swap (offline re-analysis)
+
+Two physical measurements beyond L1–L3, tested on recordings already made (no new sessions).
+Code: `src/lumen/deepcheck.py`, `experiments/deepcheck/neck_reference.py`.
+
+**1. Face/neck response shape (does the face turn the probe's colours into the same pattern of
+colour change as the neck?).** Meet sessions CG1–CG6, CF1 (FaceFusion, swap off), CS1 and CS2
+(swap on), and local G1–G3. A plain similarity of the face and neck transfer matrices looked
+promising (swap 0.80 and 0.82 against 0.93–0.97 for strong genuine sessions), but it is biased
+low by noise: weak genuine sessions scored 0.71–0.86 too. With noise removed (transfer
+estimated on two independent halves of the segments, cross-products only), the swap scored
+1.00–1.10 and genuine 0.92–1.06. **No separation: FaceFusion reproduces the face's colour
+response.** Dropped.
+
+**2. Neck-referenced lean (cheek contrast / contrast between the neck's two halves).** Ten
+genuine session videos re-measured with the neck split in two (J1 not measurable). The neck
+leans too: neck contrast +0.146 to +0.304. But the ratio is not steadier than the cheek contrast
+alone:
+
+| | Mean | Spread between sessions (CV) | Within-session SE |
+|---|---|---|---|
+| Cheek contrast (L3) | +0.489 | 13.4 % | ~5 % |
+| Cheek / neck contrast | +2.01 | 38.8 % (11 % without G1, neck +0.146) | ~10 % |
+
+The neck's lean is smaller and noisier than the cheeks', so dividing by it adds noise. Not
+usable as a reference. Not tested on swap sessions: none of them saved video.
