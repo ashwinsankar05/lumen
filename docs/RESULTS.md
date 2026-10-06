@@ -485,3 +485,26 @@ stated prediction, not a validated detector. Next: more swap and swap-off sessio
 The probe survives the browser path: neck 15x the floor, and the cheek contrast (+0.560) is in the
 range of the local sessions on this laptop (+0.40 to +0.59). One earlier attempt
 (20261006-195914-web-9070) ran with the first, fixed exposure that left the picture nearly black: face found in 0.9 % of frames, abstained ("not enough data to measure").
+
+### Verification link: web-path calibration (2026-10-07, same subject, laptop and room as W1)
+
+Three genuine sessions opened with `?label=genuine`, after the page's exposure tuning was fixed
+(every setting measured after settling; brightest setting with >= 20 fps kept).
+
+| Session | Neck coh. (floor) | Cheek contrast | Relief | fps |
+|---|---|---|---|---|
+| 20261006-202050-web-genuine-a551 | 0.696 (0.045) | +0.607 | 0.150 | 19.4 |
+| 20261006-202357-web-genuine-5949 | 0.696 (0.045) | +0.529 | 0.191 | 19.1 |
+| 20261006-202600-web-genuine-0922 | 0.699 (0.045) | +0.543 | 0.201 | 19.9 |
+
+`python -m lumen.web --calibrate`: L1–L3 cheek contrast >= +0.4244, face/neck coherence ratio
+>= 0.9231; deep check lean >= +0.4694, relief >= 0.1243.
+
+- **Held-out genuine W1 abstains** under this calibration: lamp gate, face/neck lightness 1.294
+  against a limit of 1.285 from three very similar sessions. Not retuned. The deep check calls W1
+  real.
+- **Relief is low through the browser:** 0.150–0.201 for this genuine face, against 0.237–0.513
+  for the same face with the local camera, and 0.145 / 0.160 for the FaceFusion swap locally (other
+  laptop). Likely cause, not yet tested: JPEG 4:2:0 halves the colour resolution and mixes
+  neighbouring face patches. Whether relief can still separate a swap through the link is open
+  until a swap session runs through it.

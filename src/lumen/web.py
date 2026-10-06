@@ -336,17 +336,24 @@ def ensure_certificate(cert_path: Path, key_path: Path, ips: list[str]) -> None:
 
 def calibrate_web(sessions_dir: str | Path = "data/web/sessions", n: int = 3,
                   thresholds_path: str = "data/thresholds-web.json",
-                  deep_path: str = "data/web/deep_thresholds.json") -> list[str]:
-    """Calibrate L1-L3 and the deep check from the n newest genuine web sessions (genuine only)."""
+                  deep_path: str = "data/web/deep_thresholds.json", tag: str = "genuine") -> list[str]:
+    """Calibrate L1-L3 and the deep check from the n newest web sessions opened with ?label=<tag>.
+
+    The tag must name GENUINE sessions only (e.g. genuine, or ff-genuine for a face-swap path with
+    the swap switched off); one calibration per setup, because calibration does not transfer
+    between cameras, rooms or people (docs/RESULTS.md).
+    """
     from lumen.decide import calibrate
     from lumen.deepcheck import calibrate_deep, deep_measures
     from lumen.record import load_record
     from lumen.session import reanalyse
 
-    found = sorted((d for d in Path(sessions_dir).glob("*-web-genuine-*") if (d / "record.json").exists()),
+    if "genuine" not in tag:
+        raise SystemExit("calibrate only from genuine sessions: the tag must contain 'genuine'")
+    found = sorted((d for d in Path(sessions_dir).glob(f"*-web-{tag}-*") if (d / "record.json").exists()),
                    reverse=True)[:n]
     if len(found) < n:
-        raise SystemExit(f"need {n} genuine web sessions (open the link with ?label=genuine), found {len(found)}")
+        raise SystemExit(f"need {n} sessions opened with ?label={tag}, found {len(found)}")
     recs = [load_record(d / "record.json") for d in sorted(found)]
     if any(r.get("capture", {}).get("simulated") for r in recs):
         raise SystemExit("refusing to calibrate from simulated sessions")
@@ -363,6 +370,37 @@ def calibrate_web(sessions_dir: str | Path = "data/web/sessions", n: int = 3,
         f"deep check -> {deep_path}: lean >= {deep.contrast_min}, relief >= {deep.relief_min}"]
 
 
+def report_web(match: str = "", sessions_dir: str | Path = "data/web/sessions",
+               thresholds_path: str = "data/thresholds-web.json",
+               deep_path: str = "data/web/deep_thresholds.json") -> str:
+    """Markdown table: every web session (name containing `match`) re-judged with the given calibration."""
+    from lumen.decide import decide, load_thresholds
+    from lumen.deepcheck import DeepThresholds, deep_measures, judge
+    from lumen.record import load_record
+    from lumen.session import reanalyse
+
+    th = load_thresholds(thresholds_path)
+    deep = DeepThresholds.load(deep_path) if Path(deep_path).exists() else None
+    rows = [f"Calibration: {thresholds_path} (cheek contrast >= {th.cheek_contrast_min}); deep check: "
+            + (f"{deep_path} (lean >= {deep.contrast_min}, relief >= {deep.relief_min})" if deep else "none"),
+            "", "| Session | Neck coh. (floor) | Cheek contrast | Relief | fps | L1-L3 | Deep check |",
+            "|---|---|---|---|---|---|---|"]
+    for d in sorted(Path(sessions_dir).glob(f"*{match}*")):
+        if not (d / "record.json").exists():
+            continue
+        rec = load_record(d / "record.json")
+        f, ex = reanalyse(rec), rec.get("extra") or {}
+        v = decide(f, th, face_fraction=ex.get("face_fraction", 1.0), pose=ex.get("pose_summary"))
+        m = deep_measures(rec)
+        dv = judge(m, deep).decision if deep else "-"
+        neck = "-" if not f else f"{f.measurement.neck.coherence:.3f} ({f.measurement.noise_floor:.3f})"
+        cc = "-" if not f or f.cheek_contrast is None else f"{f.cheek_contrast:+.3f}"
+        rel = "-" if not m or m.relief is None else f"{m.relief:.3f}"
+        rows.append(f"| {d.name} | {neck} | {cc} | {rel} | {rec['capture'].get('fps_reported', '-')} | "
+                    f"{v.decision} | {dv} |")
+    return "\n".join(rows)
+
+
 def main(argv: list[str] | None = None) -> int:
     import argparse
     import sys
@@ -376,14 +414,21 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--amplitude", type=float, default=34.0)
     p.add_argument("--thresholds", default="data/thresholds-web.json", help="L1-L3 calibration of the web path")
     p.add_argument("--no-video", action="store_true", help="do not save the received video")
+    p.add_argument("--deep-thresholds", default="data/web/deep_thresholds.json")
     p.add_argument("--calibrate", action="store_true",
-                   help="calibrate L1-L3 and the deep check from the 3 newest ?label=genuine sessions, then exit")
+                   help="calibrate L1-L3 and the deep check from the 3 newest ?label=<tag> sessions, then exit")
+    p.add_argument("--tag", default="genuine", help="with --calibrate: the genuine tag (e.g. ff-genuine)")
+    p.add_argument("--report", metavar="MATCH", nargs="?", const="",
+                   help="re-judge saved web sessions (names containing MATCH) with the calibration, then exit")
     a = p.parse_args(argv)
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", line_buffering=True)
     if a.calibrate:
-        for line in calibrate_web(thresholds_path=a.thresholds):
+        for line in calibrate_web(thresholds_path=a.thresholds, deep_path=a.deep_thresholds, tag=a.tag):
             print(line)
+        return 0
+    if a.report is not None:
+        print(report_web(a.report, thresholds_path=a.thresholds, deep_path=a.deep_thresholds))
         return 0
 
     app = create_app(thresholds_path=a.thresholds, duration_s=a.duration, amplitude=a.amplitude,
