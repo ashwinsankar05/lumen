@@ -47,6 +47,7 @@ class Thresholds:
     neck_gate_min: float = 0.15
     neck_gate_floor_multiple: float = 4.0
     replay_face_neck_coherence_min: float = 0.5
+    replay_neck_floor_multiple: float = 2.0  # replay only if the neck is under this x floor
     # L1
     face_to_neck_coherence_min: float = 0.7
     # L2
@@ -168,12 +169,22 @@ def decide(
                         f">= {gate:.3f} (max of {th.neck_gate_min} and {th.neck_gate_floor_multiple} x "
                         f"floor {m.noise_floor:.3f}, K = {m.n_segments})", neck_ok))
     if not neck_ok:
-        replay = features.face_neck_coherence >= th.replay_face_neck_coherence_min
+        # A replay follows an old code, so its neck shows no response to today's probe at all (sits
+        # near the floor) while face and neck still move together. A neck clearly above the floor
+        # but under the gate is a real but weak response (measured 2026-10-06 through a call: 3.6x
+        # the floor): that is too little evidence, not evidence of a replay.
+        no_response = m.neck.coherence < th.replay_neck_floor_multiple * m.noise_floor
+        replay = no_response and features.face_neck_coherence >= th.replay_face_neck_coherence_min
         checks.append(Check("face_neck_coherence", features.face_neck_coherence,
-                            f"< {th.replay_face_neck_coherence_min} (else replay)", not replay))
+                            f"< {th.replay_face_neck_coherence_min} while the neck is under "
+                            f"{th.replay_neck_floor_multiple} x floor (else replay)", not replay))
         if replay:
             return done("reject", "face and neck follow a colour signal that is not today's probe "
                                   "(consistent with a replayed session)")
+        if not no_response:
+            return done("abstain", f"the probe is detected but too weak to decide (neck "
+                                   f"{m.neck.coherence / m.noise_floor:.1f} x the noise floor, needs "
+                                   f"{gate / m.noise_floor:.1f} x): run longer, dim the room, or sit closer")
         return done("abstain", "probe not detected on the neck reference: too much ambient light, "
                                "subject too far, or the probe too small on their screen")
 

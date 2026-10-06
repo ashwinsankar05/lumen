@@ -198,6 +198,27 @@ mean − 3 x sqrt(sd² + mean SE²). For G1–G3 it moves from 0.500 to **0.453*
 recorded with the sessions above were computed with the old rule; recalibrate to apply the new
 one. No session's measured values change.
 
+## 2026-10-06 — Call check 2 through Google Meet: the probe and the cheek lean survive the call
+
+Same call as below, after selecting "OBS Virtual Camera" in Meet while a test pattern ran (both
+people confirmed seeing it). Subject's room dimmed, ~30 cm, brightness 100%, facing the screen,
+OBS "Real" scene (no swap). Split probe, amplitude 34, 60 s. Session
+`20261006-124442-CALL-SMOKE-2-ac87`; tile 1763x882 read at 30 fps, face found in 100% of frames.
+
+| Face / neck coh. (floor, K) | Ratio | Face/neck gain; bg/neck | Lightness | Cheek contrast ± SE (right / left) | Lag |
+|---|---|---|---|---|---|
+| 0.282 / 0.250 (0.070, 57) | 1.13 | 1.88; 0.45 | 1.42 | **+0.490 ± 0.065** (+0.245 / −0.245) | 1.37 s |
+
+- The probe reaches the subject through Meet and returns measurably: neck 3.6x the floor (vs
+  ~12x locally), with the face following as well as the neck.
+- **The cheek lean survives the live call almost intact** (+0.49 vs +0.55–0.59 locally), about
+  7 SE from zero, symmetric between the cheeks. One genuine subject, one session.
+- Recorded verdict: **reject (replay)**, a false accusation: the neck was just under the 4x-floor
+  gate, and the replay rule only checked that face and neck co-vary. **Rule changed:** replay now
+  also requires the neck to show no response to today's probe (under 2x the floor); between 2x
+  and the gate the verdict is abstain ("detected but too weak"). Re-judged: R1 (neck 1.2x floor)
+  still rejects; this session abstains. Call sessions from here run 90 s (floor ≈ 0.047).
+
 ## 2026-10-06 — First call check through Google Meet: INVALID (probe never reached the subject)
 
 Verifier laptop in call mode (`--emit virtualcam`, amplitude 32, split, 30 s), subject on a second

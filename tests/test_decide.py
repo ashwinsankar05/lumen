@@ -63,6 +63,18 @@ def test_replay_is_rejected_when_neither_follows_today_but_they_follow_each_othe
     assert v.decision == "reject" and "replay" in v.reason
 
 
+def test_weak_but_real_response_is_not_called_a_replay():
+    """Measured through a Meet call: neck 0.250 at floor 0.070 (3.6x), face-neck 0.737."""
+    v = decide(features(face=0.282, neck=0.250, floor=0.070, face_neck=0.737), CALIBRATED)
+    assert v.decision == "abstain" and "too weak" in v.reason
+
+
+def test_measured_replay_is_still_rejected():
+    """Measured R1: neck 0.094 at floor 0.078 (1.2x), face-neck 0.867."""
+    v = decide(features(face=0.092, neck=0.094, floor=0.078, face_neck=0.867), CALIBRATED)
+    assert v.decision == "reject" and "replay" in v.reason
+
+
 def test_no_probe_signal_abstains():
     v = decide(features(face=0.05, neck=0.04, face_neck=0.1), CALIBRATED)
     assert v.decision == "abstain" and "neck reference" in v.reason
