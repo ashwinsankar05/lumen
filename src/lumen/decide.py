@@ -261,7 +261,12 @@ def calibrate(genuine: list[Features], base: Thresholds | None = None,
         updates["cheek_contrast_sign"] = sign
         contrasts = [sign * c for c in contrasts]
     if len(contrasts) >= 3:
-        updates["cheek_contrast_min"] = round(max(0.0, float(np.mean(contrasts) - 3 * np.std(contrasts, ddof=1))), 4)
+        # A new genuine session varies by the spread between sessions *and* by its own measurement
+        # noise (jackknife SE). With three sessions the between-session sd alone is small and
+        # unreliable, and set a bar genuine subjects fell below; use both.
+        ses = [f.cheek_contrast_se for f in genuine if f.cheek_contrast is not None and f.cheek_contrast_se is not None]
+        spread = float(np.sqrt(np.var(contrasts, ddof=1) + (np.mean(np.square(ses)) if ses else 0.0)))
+        updates["cheek_contrast_min"] = round(max(0.0, float(np.mean(contrasts)) - 3 * spread), 4)
     elif contrasts:
         updates["cheek_contrast_min"] = round(max(0.0, 0.8 * min(contrasts)), 4)
 

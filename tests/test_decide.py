@@ -132,6 +132,17 @@ def test_calibrate_from_genuine_sessions_only():
     assert decide(features(contrast=0.1), th).decision == "reject"
 
 
+def test_l3_bound_includes_each_sessions_own_noise():
+    """Measured G1-G3 (0.589 +/- 0.029, 0.573 +/- 0.036, 0.544 +/- 0.027): the bound must allow for
+    within-session noise, not only the (tiny, n = 3) spread between sessions."""
+    genuine = [replace(features(contrast=c), cheek_contrast_se=se)
+               for c, se in ((0.589, 0.029), (0.573, 0.036), (0.544, 0.027))]
+    th = calibrate(genuine)
+    assert th.cheek_contrast_min == pytest.approx(0.453, abs=0.003)
+    between_only = 0.5687 - 3 * 0.0228
+    assert th.cheek_contrast_min < between_only
+
+
 def test_calibrate_with_few_sessions_stays_provisional():
     th = calibrate([features()])
     assert th.provisional

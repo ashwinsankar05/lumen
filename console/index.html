@@ -1,94 +1,216 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>LUMEN console</title>
+  <title>LUMEN · Presence verification</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-<header>
-  <div class="brand"><span class="mark" aria-hidden="true"></span>LUMEN <small>proof of physical presence</small></div>
-  <div id="health" class="health">connecting…</div>
+<header class="topbar">
+  <div class="brand">
+    <svg class="logo" viewBox="0 0 40 40" aria-hidden="true">
+      <defs>
+        <linearGradient id="lg-l" x1="0" x2="1"><stop offset="0" stop-color="#7c6cff"/><stop offset="1" stop-color="#5a8bff"/></linearGradient>
+        <linearGradient id="lg-r" x1="0" x2="1"><stop offset="0" stop-color="#ffb35a"/><stop offset="1" stop-color="#ff7a59"/></linearGradient>
+      </defs>
+      <path d="M20 3a17 17 0 0 0 0 34z" fill="url(#lg-l)"/>
+      <path d="M20 3a17 17 0 0 1 0 34z" fill="url(#lg-r)"/>
+      <circle cx="20" cy="20" r="7" fill="var(--bg)"/>
+      <circle cx="20" cy="20" r="3" fill="var(--text)"/>
+    </svg>
+    <div>
+      <div class="brand-name">LUMEN</div>
+      <div class="brand-tag">Proof of physical presence for live video</div>
+    </div>
+  </div>
+  <div class="status">
+    <span class="pill ok" title="Nothing in the live path uses the network">● Runs offline</span>
+    <span class="pill" id="pill-cal">checking calibration…</span>
+    <span class="pill mono" id="pill-key" title="Public key that signs every session record">key …</span>
+    <button id="theme-btn" class="icon-btn" type="button" title="Switch light / dark">◐</button>
+  </div>
 </header>
 
-<main>
-  <section class="card" id="start-card">
-    <h2>New session</h2>
-    <form id="start-form">
-      <label>Source
-        <input name="source" list="sources" value="camera:0" required>
-        <datalist id="sources">
-          <option value="camera:0">webcam or virtual camera</option>
-          <option value="camera:1"></option>
-          <option value="synthetic:genuine">SIMULATED genuine</option>
-          <option value="synthetic:swap_inherit">SIMULATED swap that inherits the probe</option>
-          <option value="synthetic:swap_unlit">SIMULATED unlit swap</option>
-          <option value="synthetic:replay">SIMULATED replay</option>
-          <option value="synthetic:lamp">SIMULATED lamp on face</option>
-          <option value="synthetic:far">SIMULATED subject far away</option>
-          <option value="synthetic:relit">SIMULATED uniform relighting</option>
-        </datalist>
-      </label>
-      <label>Probe
-        <select name="layout">
-          <option value="split">two-sided (L1–L3)</option>
-          <option value="single">single (L1–L2 only)</option>
+<main class="layout">
+  <!-- ============ left: start a verification ============ -->
+  <aside class="card start-card">
+    <h2>New verification</h2>
+    <form id="start-form" autocomplete="off">
+      <label class="field">
+        <span>Video source</span>
+        <select id="source-preset">
+          <optgroup label="Live">
+            <option value="camera:0" selected>Webcam (camera 0)</option>
+            <option value="camera:1">Camera 1 (e.g. a virtual camera)</option>
+            <option value="other">Other: file, screen region…</option>
+          </optgroup>
+          <optgroup label="Simulated (no camera, for showing the logic)">
+            <option value="synthetic:genuine">Simulated · genuine person</option>
+            <option value="synthetic:swap_inherit">Simulated · face swap</option>
+            <option value="synthetic:replay">Simulated · replay</option>
+            <option value="synthetic:lamp">Simulated · lamp on face</option>
+            <option value="synthetic:far">Simulated · too far away</option>
+          </optgroup>
         </select>
       </label>
-      <label>Probe output
-        <select name="emit">
-          <option value="screen">this screen (subject sits here)</option>
-          <option value="virtualcam">virtual camera (video call)</option>
-        </select>
+      <label class="field" id="custom-source-field" hidden>
+        <span>Source</span>
+        <input id="source-custom" placeholder="file:data\sessions\…\video.mkv  or  screen:x,y,w,h">
       </label>
-      <label>Duration (s) <input name="duration_s" type="number" min="10" max="300" step="5" value="45"></label>
-      <label>Amplitude <input name="amplitude" type="number" min="2" max="36" step="1" value="24"></label>
-      <label>Label <input name="label" placeholder="e.g. genuine-1"></label>
-      <label class="check"><input name="fullscreen" type="checkbox" checked> full-screen probe</label>
-      <label class="check"><input name="save_video" type="checkbox"> save video</label>
+
+      <label class="field">
+        <span>Duration <b id="duration-out">45 s</b></span>
+        <input name="duration_s" id="duration" type="range" min="20" max="120" step="5" value="45">
+      </label>
+
+      <label class="field">
+        <span>Label</span>
+        <input name="label" placeholder="e.g. judge-1">
+      </label>
+
+      <details class="advanced">
+        <summary>Advanced</summary>
+        <label class="field">
+          <span>Probe</span>
+          <select name="layout">
+            <option value="split">Two-sided (L1 + L2 + L3)</option>
+            <option value="single">Single (L1 + L2 only)</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Probe output</span>
+          <select name="emit">
+            <option value="screen">This screen (subject sits here)</option>
+            <option value="virtualcam">Virtual camera (video call)</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Amplitude <b id="amp-out">24</b></span>
+          <input name="amplitude" id="amplitude" type="range" min="8" max="34" step="1" value="24">
+        </label>
+        <label class="check"><input name="fullscreen" type="checkbox" checked> Full-screen probe</label>
+        <label class="check"><input name="save_video" type="checkbox"> Save video (for replay tests)</label>
+      </details>
+
       <div class="buttons">
-        <button type="submit" id="start-btn">Start</button>
-        <button type="button" id="stop-btn" class="secondary" disabled>Stop</button>
+        <button type="submit" class="btn primary" id="start-btn">▶ Start verification</button>
+        <button type="button" class="btn ghost" id="stop-btn" disabled>■ Stop</button>
       </div>
+      <p class="hint">The screen turns grey for 8 s (warm-up), then shows the one-time colour pattern.
+        Ask the person to face the screen, ~40 cm away, and keep still. Esc in the probe window
+        stops it.</p>
     </form>
-    <p class="hint">The probe window opens full-screen on this machine. Esc in that window aborts.</p>
-  </section>
+  </aside>
 
-  <section class="card" id="live-card">
-    <h2>Live <span id="live-state" class="pill">idle</span></h2>
-    <div class="progress"><div id="progress-bar"></div></div>
-    <canvas id="traces" width="900" height="240" aria-label="probe, face and neck traces"></canvas>
-    <div class="legend"><span class="sw probe"></span>probe (left a*) <span class="sw face"></span>face a* <span class="sw neck"></span>neck a*</div>
-    <div class="tiles" id="tiles"></div>
-  </section>
-
-  <section class="card" id="verdict-card">
-    <h2>Verdict</h2>
-    <div id="verdict" class="verdict empty">No session yet.</div>
-    <table id="checks"><thead><tr><th>Check</th><th>Value</th><th>Threshold</th><th></th></tr></thead><tbody></tbody></table>
-    <div id="record-links"></div>
-  </section>
-
-  <section class="card" id="sessions-card">
-    <h2>Sessions</h2>
-    <div class="buttons">
-      <button id="refresh-btn" class="secondary">Refresh</button>
-      <button id="calibrate-btn" class="secondary">Calibrate from selected genuine sessions</button>
-      <button id="reset-btn" class="secondary">Reset thresholds</button>
+  <!-- ============ right: what is happening ============ -->
+  <section class="stage">
+    <div class="card hero" id="hero">
+      <ol class="steps" id="steps">
+        <li data-step="warmup"><span>1</span>Warm-up</li>
+        <li data-step="probe"><span>2</span>One-time light pattern</li>
+        <li data-step="analysis"><span>3</span>Physics checks</li>
+        <li data-step="verdict"><span>4</span>Verdict</li>
+      </ol>
+      <div class="verdict idle" id="verdict">
+        <div class="verdict-icon" id="verdict-icon">◎</div>
+        <div class="verdict-text">
+          <div class="verdict-word" id="verdict-word">Ready</div>
+          <div class="verdict-reason" id="verdict-reason">Start a verification to check whether the person on camera is physically present.</div>
+          <div class="badges" id="verdict-badges"></div>
+        </div>
+      </div>
+      <div class="progress"><div id="progress-bar"></div></div>
     </div>
-    <div id="thresholds" class="hint"></div>
-    <div class="table-wrap">
-      <table id="sessions"><thead><tr><th></th><th>Session</th><th>Source</th><th>Probe</th><th>Decision</th><th>Face</th><th>Neck</th><th>Cheeks</th></tr></thead><tbody></tbody></table>
-    </div>
-  </section>
 
-  <section class="card">
-    <h2>Verify a record</h2>
-    <input type="file" id="verify-file" accept="application/json,.json">
-    <div id="verify-out" class="hint"></div>
+    <div class="layers">
+      <article class="card layer" id="layer-L1">
+        <header><span class="tag">L1</span><h3>Follows the light</h3><span class="state" data-state="idle">—</span></header>
+        <p class="question">Does the face follow our secret light pattern as well as the neck does?</p>
+        <div class="big"><span class="value" data-k="value">—</span><span class="unit">face ÷ neck</span></div>
+        <div class="meter"><div class="fill"></div><div class="mark"></div></div>
+        <div class="sub" data-k="sub">Face and neck coherence appear here.</div>
+      </article>
+      <article class="card layer" id="layer-L2">
+        <header><span class="tag">L2</span><h3>Right proportions</h3><span class="state" data-state="idle">—</span></header>
+        <p class="question">Do face, neck and background react in physically possible amounts?</p>
+        <div class="big"><span class="value" data-k="value">—</span><span class="unit">face ÷ neck gain</span></div>
+        <div class="meter"><div class="fill"></div><div class="mark"></div></div>
+        <div class="sub" data-k="sub">Light should fade with distance: the wall behind barely reacts.</div>
+      </article>
+      <article class="card layer" id="layer-L3">
+        <header><span class="tag">L3</span><h3>Real 3D face</h3><span class="state" data-state="idle">—</span></header>
+        <p class="question">Do the cheeks lean toward the half of the screen they face?</p>
+        <div class="big"><span class="value" data-k="value">—</span><span class="unit">cheek contrast</span></div>
+        <svg class="cheeks" viewBox="0 0 340 78" aria-hidden="true">
+          <line x1="180" y1="2" x2="180" y2="66" class="axis"/>
+          <rect class="bar left" x="180" y="8" width="0" height="20" rx="4"/>
+          <rect class="bar right" x="180" y="38" width="0" height="20" rx="4"/>
+          <text x="0" y="23" class="lbl">image-left cheek</text>
+          <text x="0" y="53" class="lbl">image-right cheek</text>
+          <text x="180" y="77" class="tick" text-anchor="middle">lean ←  0  → lean</text>
+        </svg>
+        <div class="sub" data-k="sub">A flat, re-rendered face shows no opposite lean.</div>
+      </article>
+    </div>
+
+    <div class="card live-card">
+      <div class="card-head">
+        <h2>Live signal</h2>
+        <div class="legend"><span class="sw probe"></span>light we send <span class="sw face"></span>face <span class="sw neck"></span>neck</div>
+      </div>
+      <canvas id="traces" aria-label="live traces of the probe, face and neck"></canvas>
+      <div class="tiles" id="tiles"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h2>Safeguards</h2>
+        <span class="hint">Why LUMEN would refuse to guess</span>
+      </div>
+      <div class="gates" id="gates"></div>
+      <details class="all-checks">
+        <summary>All checks with values and thresholds</summary>
+        <table id="checks"><thead><tr><th>Check</th><th>Value</th><th>Threshold</th><th></th></tr></thead><tbody></tbody></table>
+      </details>
+      <div class="record-actions" id="record-actions"></div>
+    </div>
   </section>
 </main>
+
+<section class="lower">
+  <div class="card sessions-card">
+    <div class="card-head">
+      <h2>Session history</h2>
+      <div class="buttons">
+        <button class="btn ghost small" id="refresh-btn" type="button">↻ Refresh</button>
+        <button class="btn ghost small" id="calibrate-btn" type="button">Calibrate from selected</button>
+        <button class="btn ghost small danger" id="reset-btn" type="button">Reset calibration</button>
+      </div>
+    </div>
+    <p class="hint" id="thresholds"></p>
+    <div class="table-wrap">
+      <table id="sessions">
+        <thead><tr><th></th><th>When</th><th>Session</th><th>Source</th><th>Verdict</th><th class="num">Face</th><th class="num">Neck</th><th class="num">Cheeks</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p class="hint">Tick three genuine sessions recorded in this room and light, then calibrate.</p>
+  </div>
+
+  <div class="card verify-card">
+    <h2>Check a record</h2>
+    <label class="drop" id="drop">
+      <input type="file" id="verify-file" accept="application/json,.json" hidden>
+      <span class="drop-icon">⤓</span>
+      <span>Drop a <b>record.json</b> here, or click to choose one</span>
+      <span class="hint">Proves the record is unmodified and that the light shown matches its one-time code.</span>
+    </label>
+    <div id="verify-out" class="verify-out"></div>
+  </div>
+</section>
+
+<footer class="foot">LUMEN · Team Owlight · measures physics, not appearance · never trained on fake faces</footer>
 <script src="/static/app.js"></script>
 </body>
 </html>

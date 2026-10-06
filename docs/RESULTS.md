@@ -189,6 +189,15 @@ Reading:
   smallest calibration face size (eye distance), and a smaller face abstains ("sit closer").
   Two sessions, one subject; the size of the effect needs more distances to pin down.
 
+### Calibration change (2026-10-06)
+
+The L3 bound was mean − 3 sd over genuine sessions. With n = 3 that sd (0.023 for G1–G3) is small
+and unreliable, and it ignores each session's own noise (jackknife SE ≈ 0.03); in a simulated
+check a genuine session (+0.54) fell below such a bound (0.575). The bound is now
+mean − 3 x sqrt(sd² + mean SE²). For G1–G3 it moves from 0.500 to **0.453**. The thresholds
+recorded with the sessions above were computed with the old rule; recalibrate to apply the new
+one. No session's measured values change.
+
 ## 2026-10-05 — Call-mode output: colour through the OBS virtual camera (no subject)
 
 OBS Studio 32.2.2 installed; LUMEN's `VirtualCamDisplay` (pyvirtualcam, 1280x720, 30 fps) fed a
