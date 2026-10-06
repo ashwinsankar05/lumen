@@ -2,7 +2,9 @@
 
 Run on the attacker's laptop (the one running FaceFusion + OBS):
 
-    python experiments/swap_local/protocol.py --camera <OBS Virtual Camera index>
+    python experiments/swap_local/protocol.py --camera <OBS Virtual Camera index>          (guided)
+    python experiments/swap_local/protocol.py --camera <index> --session CF1               (one session)
+    python experiments/swap_local/protocol.py --report                                     (results)
 
 The probe fills that laptop's screen and lights the subject directly; LUMEN reads the FaceFusion
 output through the OBS Virtual Camera. Every session goes through the same path, only FaceFusion's
@@ -10,7 +12,9 @@ face swap is toggled, so a difference between swap-off (CF) and swap-on (CS) ses
 from the swap (PROJECT.md §8: genuine baseline in the same session and light).
 
 Sequence: CF1 CF2 CF3 (swap off) -> calibrate from them -> CS1 (on) CF4 (off) CS2 (on) CF5 (off).
-Before every session the operator confirms the subject is ready (PROJECT.md §12).
+The subject agrees before every session (PROJECT.md §12): the guided mode asks yes/no; with
+--session, whoever runs the command (a person or an assistant) must have asked first.
+A pre-flight check refuses to start when the camera feed shows no face or is frozen.
 Results: a table on screen, results/<timestamp>/results.md, and the signed records in data/sessions.
 """
 
@@ -19,6 +23,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -99,23 +104,136 @@ def ask(prompt: str) -> bool:
     return input(prompt).strip().lower() in ("y", "yes")
 
 
+def preflight(camera: int, seconds: float = 3.0) -> tuple[float, float]:
+    """(face found fraction, changing-frame fraction) over a few seconds, before the probe starts.
+
+    Catches the two failures seen in the field: no face in the OBS feed, and a frozen feed (a
+    hidden browser preview that stopped repainting).
+    """
+    from lumen.capture import open_source
+    from lumen.regions import RegionExtractor
+
+    src = open_source(f"camera:{camera}")
+    ex = RegionExtractor()
+    found, frames, changed, prev = 0, 0, 0, None
+    end = time.perf_counter() + seconds
+    try:
+        while time.perf_counter() < end:
+            img = src.read()
+            if img is None:
+                continue
+            frames += 1
+            out = ex.process(img)
+            found += bool(out and "face" in out and "neck" in out)
+            small = img[::8, ::8].astype(int)
+            if prev is not None and np.abs(small - prev).mean() > 0.05:
+                changed += 1
+            prev = small
+    finally:
+        src.close()
+    return (found / frames if frames else 0.0), (changed / max(1, frames - 1))
+
+
+def run_one(label: str, swap: bool, a, done: dict, done_file: Path) -> bool:
+    """One session; the subject has already agreed. Returns False if the pre-flight check refuses."""
+    face, moving = preflight(a.camera)
+    print(f"  pre-flight: face+neck in {face:.0%} of frames, video changing in {moving:.0%} of frames")
+    if face < 0.8 or moving < 0.3:
+        why = "no face in the camera feed" if face < 0.8 else "the camera feed looks frozen"
+        print(f"  NOT STARTED: {why}. Check FaceFusion's preview (the special Chrome window, not "
+              "minimised), OBS Window Capture and Start Virtual Camera, then try again.")
+        return False
+    cfg = SessionConfig(source=f"camera:{a.camera}", duration_s=a.duration, amplitude=a.amplitude,
+                        label=label, lock_camera=False, thresholds_path=a.thresholds)
+    result = Session(cfg).run()
+    done[label] = {"swap": swap, "record": result.record_path}
+    done_file.parent.mkdir(parents=True, exist_ok=True)
+    done_file.write_text(json.dumps(done, indent=2))
+    f = result.features
+    contrast = "-" if not f or f.cheek_contrast is None else f"{f.cheek_contrast:+.3f}"
+    print(f"  -> {result.verdict.decision.upper()}: {result.verdict.reason}")
+    print(f"     cheek contrast {contrast}, face found {result.face_fraction:.0%}")
+    if result.face_fraction < 0.8:
+        print("     The face was lost during the session: the FaceFusion preview probably froze behind "
+              "the full-screen flicker. Repeat this session.")
+    if label == CALIBRATE_AFTER:
+        maybe_calibrate(a, done)
+    return True
+
+
+def maybe_calibrate(a, done: dict) -> None:
+    genuine = [done[k] for k in ("CF1", "CF2", "CF3") if k in done and done[k]["record"]]
+    recs = [load_record(g["record"]) for g in genuine]
+    feats = [reanalyse(r) for r in recs]
+    if len(feats) < 3 or any(x is None for x in feats):
+        print("  Calibration needs three usable swap-off sessions (CF1-CF3); repeat the failed one.")
+        return
+    th = calibrate(feats, poses=[(r.get("extra") or {}).get("pose_summary") for r in recs])
+    th.save(a.thresholds)
+    print(f"  Calibrated from CF1-CF3: cheek contrast must be >= {th.cheek_contrast_min} -> {a.thresholds}")
+
+
+def report(a, done: dict) -> None:
+    rows = [summary_row(k, v["swap"], v["record"], a.thresholds) for k, v in done.items() if v.get("record")]
+    if not rows:
+        print("No sessions recorded yet.")
+        return
+    table = markdown(rows)
+    print("\n" + table + "\n" + contrast_summary(rows))
+    out = HERE / "results" / datetime.now().strftime("%Y%m%d-%H%M%S")
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "results.md").write_text(table + "\n" + contrast_summary(rows) + "\n", encoding="utf-8")
+    (out / "results.json").write_text(json.dumps(rows, indent=2), encoding="utf-8")
+    print(f"\nSaved to {out}. Bring back the whole data folder and this results folder.")
+
+
+def next_step(done: dict) -> str:
+    for label, swap in SEQUENCE:
+        if label not in done:
+            return f"Next: {label}, FaceFusion swap {'ON' if swap else 'OFF'}."
+    return "All sessions done: run with --report."
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--camera", type=int, required=True, help="index of OBS Virtual Camera (python -m lumen cameras)")
-    p.add_argument("--duration", type=float, default=60.0)
-    p.add_argument("--amplitude", type=float, default=32.0)
+    p.add_argument("--camera", type=int, help="index of OBS Virtual Camera (python -m lumen cameras)")
+    p.add_argument("--duration", type=float, default=90.0)
+    p.add_argument("--amplitude", type=float, default=34.0)
     p.add_argument("--thresholds", default="data/thresholds-local-swap.json")
-    p.add_argument("--start-at", default="CF1", help="resume from this label")
+    p.add_argument("--start-at", default="CF1", help="guided mode: resume from this label")
+    p.add_argument("--session", help="run ONLY this session, with no yes/no prompt (the subject has "
+                                     "already agreed, e.g. in an assistant's chat), e.g. CF1")
+    p.add_argument("--report", action="store_true", help="print the results table of sessions so far")
+    p.add_argument("--reset", action="store_true", help="forget earlier sessions (records stay on disk)")
     a = p.parse_args(argv)
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
 
     labels = [s[0] for s in SEQUENCE]
-    if a.start_at not in labels:
-        p.error(f"--start-at must be one of {labels}")
+    swap_of = dict(SEQUENCE)
     done_file = Path("data") / "swap_local_sessions.json"
+    if a.reset and done_file.exists():
+        done_file.unlink()
+        print("Forgot earlier sessions (their records are still in data/sessions).")
     done: dict = json.loads(done_file.read_text()) if done_file.exists() else {}
 
+    if a.report:
+        report(a, done)
+        return 0
+    if a.camera is None:
+        p.error("--camera is required to run sessions")
+
+    if a.session:
+        if a.session not in labels:
+            p.error(f"--session must be one of {labels}")
+        print(f"{a.session}: FaceFusion face swap {'ON (the attack)' if swap_of[a.session] else 'OFF'}; "
+              f"8 s grey + {a.duration:g} s flicker, full screen.")
+        ok = run_one(a.session, swap_of[a.session], a, done, done_file)
+        print("  " + next_step(done))
+        return 0 if ok else 1
+
+    if a.start_at not in labels:
+        p.error(f"--start-at must be one of {labels}")
     print(__doc__.split("\n\n")[1])
     for label, swap in SEQUENCE[labels.index(a.start_at):]:
         print("\n" + "=" * 70)
@@ -125,37 +243,10 @@ def main(argv: list[str] | None = None) -> int:
         if not ask(f"  Swap is {'ON' if swap else 'OFF'} and the subject is ready? (yes/no): "):
             print("  Stopped. Resume later with --start-at", label)
             break
-        cfg = SessionConfig(source=f"camera:{a.camera}", duration_s=a.duration, amplitude=a.amplitude,
-                            label=label, lock_camera=False, thresholds_path=a.thresholds)
-        result = Session(cfg).run()
-        done[label] = {"swap": swap, "record": result.record_path}
-        done_file.parent.mkdir(parents=True, exist_ok=True)
-        done_file.write_text(json.dumps(done, indent=2))
-        f = result.features
-        contrast = "–" if not f or f.cheek_contrast is None else f"{f.cheek_contrast:+.3f}"
-        print(f"  -> {result.verdict.decision.upper()}: {result.verdict.reason}")
-        print(f"     cheek contrast {contrast}, face found {result.face_fraction:.0%}")
-
-        if label == CALIBRATE_AFTER:
-            genuine = [done[k] for k in ("CF1", "CF2", "CF3") if k in done and done[k]["record"]]
-            recs = [load_record(g["record"]) for g in genuine]
-            feats = [reanalyse(r) for r in recs]
-            if len(feats) < 3 or any(x is None for x in feats):
-                print("  Calibration needs three usable swap-off sessions; repeat one with --start-at.")
-                break
-            th = calibrate(feats, poses=[(r.get("extra") or {}).get("pose_summary") for r in recs])
-            th.save(a.thresholds)
-            print(f"  Calibrated from CF1-CF3: cheek contrast must be >= {th.cheek_contrast_min} -> {a.thresholds}")
-
-    rows = [summary_row(k, v["swap"], v["record"], a.thresholds) for k, v in done.items() if v.get("record")]
-    if rows:
-        table = markdown(rows)
-        print("\n" + table + "\n" + contrast_summary(rows))
-        out = HERE / "results" / datetime.now().strftime("%Y%m%d-%H%M%S")
-        out.mkdir(parents=True, exist_ok=True)
-        (out / "results.md").write_text(table + "\n" + contrast_summary(rows) + "\n", encoding="utf-8")
-        (out / "results.json").write_text(json.dumps(rows, indent=2), encoding="utf-8")
-        print(f"\nSaved to {out}. Bring back the whole data folder and this results folder.")
+        if not run_one(label, swap, a, done, done_file):
+            print("  Resume with --start-at", label)
+            break
+    report(a, done)
     return 0
 
 
