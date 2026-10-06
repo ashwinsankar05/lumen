@@ -9,20 +9,61 @@
 
   let stream = null, preflightOk = false, speedTried = false, speedNote = "";
 
+  // Frame rate and brightness (mean of the small preview, 0-255) over `ms` milliseconds.
+  function measureCamera(ms) {
+    const v = $("preview");
+    const canvas = document.createElement("canvas"); canvas.width = 32; canvas.height = 24;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    return new Promise(resolve => {
+      let n = 0, sum = 0; const t0 = performance.now();
+      function tick() {
+        ctx.drawImage(v, 0, 0, 32, 24);
+        const px = ctx.getImageData(0, 0, 32, 24).data;
+        let s = 0; for (let i = 0; i < px.length; i += 4) s += (px[i] + px[i + 1] + px[i + 2]) / 3;
+        sum += s / (px.length / 4); n++;
+        if (performance.now() - t0 < ms) v.requestVideoFrameCallback(tick);
+        else resolve({ fps: n / (ms / 1000), bright: sum / n });
+      }
+      v.requestVideoFrameCallback(tick);
+    });
+  }
+
   // A dim room makes auto exposure lengthen each frame (the dev laptop's webcam drops to ~10 fps,
-  // below the 16 the 8 Hz probe needs). Where the camera allows it, fix a short exposure instead,
-  // as capture.py does for local cameras. Returns a note for the status line.
-  async function shortenExposure() {
+  // below the 16 the 8 Hz probe needs). Exposure units differ between cameras and drivers, so
+  // rather than guess a value, try exposures from long to short and keep the longest (brightest)
+  // that still gives >= 20 fps. Returns a note for the status line.
+  const FAST_ENOUGH = 20;
+  async function tuneExposure(status) {
     const track = stream && stream.getVideoTracks()[0];
     const caps = track && track.getCapabilities ? track.getCapabilities() : {};
     if (!caps.exposureMode || !caps.exposureMode.includes("manual") || !caps.exposureTime) {
       return "this camera does not let the browser set its exposure";
     }
-    const r = caps.exposureTime;               // units of 100 microseconds (Image Capture spec)
-    const target = Math.min(r.max, Math.max(r.min, 250));  // 25 ms: room for 30 fps
+    const r = caps.exposureTime, lo = Math.max(r.min, 1e-3), hi = r.max;
+    const set = async x => {
+      await track.applyConstraints({ advanced: [{ exposureMode: "manual", exposureTime: x }] });
+      await new Promise(res => setTimeout(res, 350));
+      return measureCamera(900);
+    };
     try {
-      await track.applyConstraints({ advanced: [{ exposureMode: "manual", exposureTime: target }] });
-      return `exposure fixed at ${(target / 10).toFixed(1)} ms`;
+      const steps = 8;
+      let slow = null, fast = null, fastM = null;
+      for (let i = 0; i < steps && fast === null; i++) {   // longest first, log-spaced
+        const x = hi * Math.pow(lo / hi, i / (steps - 1));
+        status.textContent = `Tuning the camera (${i + 1}/${steps})…`;
+        const m = await set(x);
+        if (m.fps >= FAST_ENOUGH) { fast = x; fastM = m; } else slow = x;
+      }
+      if (fast === null) return "even the shortest exposure is too slow";
+      for (let j = 0; j < 3 && slow !== null; j++) {       // refine between too slow and fast enough
+        const mid = Math.sqrt(slow * fast);
+        status.textContent = `Tuning the camera (fine ${j + 1}/3)…`;
+        const m = await set(mid);
+        if (m.fps >= FAST_ENOUGH) { fast = mid; fastM = m; } else slow = mid;
+      }
+      await set(fast);
+      const dark = fastM.bright < 45 ? "; the picture is dark: add light on your face" : "";
+      return `exposure tuned: ${fastM.fps.toFixed(0)} fps, brightness ${fastM.bright.toFixed(0)}/255${dark}`;
     } catch (e) {
       return `could not set the exposure (${e.name})`;
     }
@@ -33,6 +74,12 @@
     const video = { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 30 } };
     if (deviceId) video.deviceId = { exact: deviceId };
     stream = await navigator.mediaDevices.getUserMedia({ video, audio: false });
+    // start from automatic exposure: a manual value set by an earlier visit can stick in the driver
+    const track = stream.getVideoTracks()[0];
+    const caps = track.getCapabilities ? track.getCapabilities() : {};
+    if (caps.exposureMode && caps.exposureMode.includes("continuous")) {
+      await track.applyConstraints({ advanced: [{ exposureMode: "continuous" }] }).catch(() => {});
+    }
     $("preview").srcObject = stream;
     await $("preview").play();
     return stream;
@@ -71,8 +118,8 @@
       const fps = n / 2.5, live = changed / Math.max(1, n - 1);
       if (fps < 16 && !speedTried) {
         speedTried = true;
-        status.textContent = `Camera at ${fps.toFixed(0)} fps; trying a shorter exposure…`;
-        shortenExposure().then(note => { speedNote = note; setTimeout(preflight, 800); });
+        status.textContent = `Camera at ${fps.toFixed(0)} fps; tuning the exposure…`;
+        tuneExposure(status).then(note => { speedNote = note; setTimeout(preflight, 500); });
         return;
       }
       if (fps < 16) { status.className = "status bad"; status.textContent = `Camera too slow (${fps.toFixed(0)} fps, needs 16; ${speedNote}): add light on your face or pick another camera.`; }
