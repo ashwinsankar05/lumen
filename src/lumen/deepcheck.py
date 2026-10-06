@@ -15,7 +15,20 @@ screen halves they face, under the same distance, pose and codec as the cheeks. 
 cancels what the two share, and a swap that weakens only the face's lean lowers it.
 Measured on 2026-10-06: FaceFusion kept about 70 % of the cheek contrast (docs/RESULTS.md).
 Whether the ratio is steadier across genuine sessions than the raw contrast is an empirical
-question; experiments/deepcheck/neck_reference.py measures it.
+question; experiments/deepcheck/neck_reference.py measures it (measured 2026-10-06: it is not).
+
+3D relief. The nose and chin stand out towards the screen and the forehead and cheeks slope away,
+so on a real face the face patches respond to the probe with clearly different strengths. A
+generator that recolours its output face from the frame's overall colour spreads the probe evenly
+over the face. Relief is the spread (coefficient of variation) of the patches' probe gains, with
+each gain estimated noise-free from two independent halves of the recording.
+
+Judgement (`judge`): a face swap is suspected only when BOTH 3D signs are low, the lateral lean
+(L3's cheek contrast) and the relief, each against a bound from genuine sessions only
+(mean - k sqrt(sd^2 + SE^2), k = 2). Two independent deficits are required, so each bound can sit
+closer to genuine than L3's single 3-sigma bound without more false alarms.
+Validated so far only with the probe on the subject's own screen; through a Google Meet call the
+relief did not separate (compression), see docs/RESULTS.md.
 """
 
 from __future__ import annotations
@@ -182,3 +195,211 @@ def lean_from_session(session_dir: str | Path, record: dict, *, max_gap_s: float
                          lab_to_chroma(np.asarray(record["emitted"]["lab"], float)), clipped,
                          fs=cfg.get("fs", 30.0), segment_s=cfg.get("segment_s", 2.0),
                          max_lag_s=cfg.get("max_lag_s", 1.0))
+
+
+# --- 3D relief and the two-sign judgement ------------------------------------------------------
+
+SUBREGIONS = ("face.forehead", "face.nose", "face.cheek_l", "face.cheek_r", "face.chin")
+BAND_HZ = (2.0, 8.0)
+DEFAULT_K = 2.0
+
+
+def _clean_gain2(seg, keep: np.ndarray | None = None, band_hz=BAND_HZ) -> float:
+    """Squared probe gain of one region with the noise bias removed.
+
+    The transfer is estimated separately on two interleaved halves of the (kept) segments, in
+    blocks of two so that 50 %-overlapping neighbours fall in the same half; the noise in the two
+    estimates is independent, so their cross-product keeps the response and averages the noise out.
+    """
+    k = seg.n_segments
+    idx = np.arange(k) if keep is None else np.flatnonzero(keep)
+    first = (np.arange(len(idx)) // 2) % 2 == 0
+    a, b = np.zeros(k, bool), np.zeros(k, bool)
+    a[idx[first]], b[idx[~first]] = True, True
+    sa, sb = seg.spectrum(a), seg.spectrum(b)
+    m = (sa.f >= band_hz[0]) & (sa.f <= band_hz[1])
+    return float(np.einsum("fcp,fcp->f", sa.transfer[m], sb.transfer[m].conj()).real.mean())
+
+
+def relief(segs: dict, keep: np.ndarray | None = None) -> float | None:
+    """Coefficient of variation of the face patches' noise-corrected probe gains (None if < 4)."""
+    g = np.array([np.sqrt(max(_clean_gain2(segs[n], keep), 0.0)) for n in SUBREGIONS if n in segs])
+    if len(g) < 4 or g.mean() <= 0:
+        return None
+    return float(g.std() / g.mean())
+
+
+@dataclass(frozen=True)
+class DeepMeasures:
+    session: str
+    cheek_contrast: float | None
+    cheek_contrast_se: float | None
+    relief: float | None
+    relief_se: float | None
+    neck_coherence: float
+    noise_floor: float
+    simulated: bool = False
+
+
+def deep_measures(record: dict, *, max_gap_s: float = 0.5, n_blocks: int = 6) -> DeepMeasures | None:
+    """Lean and relief of a saved session, from its record (no video needed)."""
+    from lumen.features import band_mean, cheek_contrast_se, jackknife_blocks, jackknife_se
+    from lumen.session import config_from_record, longest_clean_stretch, samples_from_record, split_regions
+
+    cfg = config_from_record(record)
+    t, samples = samples_from_record(record)
+    keep = longest_clean_stretch(t, samples, max_gap_s)
+    regions_lab, _ = split_regions(t[keep], [s for s, k in zip(samples, keep) if k])
+    min_n = 2 * cfg.segment_s * cfg.fs
+    if any(r not in regions_lab or len(regions_lab[r][0]) < min_n for r in ("face", "neck")):
+        return None
+    probe = lab_to_chroma(np.asarray(record["emitted"]["lab"], float))
+    a = align(np.asarray(record["emitted"]["t"], float), probe,
+              {k: (ts, lab[:, 1:]) for k, (ts, lab) in regions_lab.items()}, fs=cfg.fs, max_lag_s=cfg.max_lag_s)
+    nper = int(round(cfg.segment_s * cfg.fs))
+    segs = {k: segment_spectra(a.probe, x, cfg.fs, nper) for k, x in a.regions.items()}
+    neck = segs["neck"].spectrum()
+
+    cheek, cheek_se = None, None
+    if all(c in segs for c in CHEEKS):
+        lat = {c: lateral_index(segs[c].spectrum()) for c in CHEEKS}
+        if all(v is not None for v in lat.values()):
+            cheek = lat[CHEEKS[0]] - lat[CHEEKS[1]]
+            cheek_se = cheek_contrast_se({c: segs[c] for c in CHEEKS}, n_blocks=n_blocks)
+
+    rel, rel_se = relief(segs), None
+    k = neck.n_segments
+    if rel is not None and k >= 2 * n_blocks:
+        loo = [relief(segs, keep) for keep in jackknife_blocks(k, n_blocks)]
+        rel_se = jackknife_se(loo) if all(v is not None for v in loo) else None
+
+    return DeepMeasures(
+        session=record.get("session_id", "?"),
+        cheek_contrast=cheek, cheek_contrast_se=cheek_se, relief=rel, relief_se=rel_se,
+        neck_coherence=float(band_mean(neck.f, neck.combined)), noise_floor=neck.noise_floor,
+        simulated=bool(record.get("capture", {}).get("simulated")),
+    )
+
+
+@dataclass(frozen=True)
+class DeepThresholds:
+    contrast_min: float      # oriented cheek contrast (sign applied)
+    relief_min: float
+    contrast_sign: int
+    k: float
+    n_genuine: int
+    sessions: tuple[str, ...]
+
+    def save(self, path) -> None:
+        import json
+        from dataclasses import asdict
+
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        Path(path).write_text(json.dumps(asdict(self), indent=2))
+
+    @classmethod
+    def load(cls, path) -> "DeepThresholds":
+        import json
+
+        d = json.loads(Path(path).read_text())
+        d["sessions"] = tuple(d["sessions"])
+        return cls(**d)
+
+
+def _bound(values, ses, k: float) -> float:
+    v = np.asarray(values, float)
+    se = np.asarray([s or 0.0 for s in ses], float)
+    return float(v.mean() - k * np.sqrt(v.std(ddof=1) ** 2 + np.mean(se ** 2)))
+
+
+def calibrate_deep(genuine: list[DeepMeasures | None], k: float = DEFAULT_K) -> DeepThresholds:
+    """Bounds from genuine sessions only (at least three, each with both measures)."""
+    usable = [m for m in genuine if m and m.cheek_contrast is not None and m.relief is not None]
+    if len(usable) < 3:
+        raise ValueError(f"calibration needs at least 3 genuine sessions with both measures, got {len(usable)}")
+    sign = 1 if np.mean([m.cheek_contrast for m in usable]) >= 0 else -1
+    return DeepThresholds(
+        contrast_min=round(_bound([sign * m.cheek_contrast for m in usable],
+                                  [m.cheek_contrast_se for m in usable], k), 4),
+        relief_min=round(_bound([m.relief for m in usable], [m.relief_se for m in usable], k), 4),
+        contrast_sign=sign, k=k, n_genuine=len(usable), sessions=tuple(m.session for m in usable),
+    )
+
+
+@dataclass(frozen=True)
+class DeepVerdict:
+    decision: str   # "real" | "swap" | "abstain"
+    reason: str
+    lean_low: bool | None
+    relief_low: bool | None
+
+
+def judge(m: DeepMeasures | None, th: DeepThresholds, neck_floor_multiple: float = 4.0) -> DeepVerdict:
+    if m is None:
+        return DeepVerdict("abstain", "not enough data to measure", None, None)
+    gate = max(0.15, neck_floor_multiple * m.noise_floor)
+    if m.neck_coherence < gate:
+        return DeepVerdict("abstain", f"probe too weak at the neck ({m.neck_coherence:.3f}, needs {gate:.3f})",
+                           None, None)
+    if m.cheek_contrast is None or m.relief is None:
+        return DeepVerdict("abstain", "face patches not measurable (needs the two-sided probe and all patches)",
+                           None, None)
+    lean_low = th.contrast_sign * m.cheek_contrast < th.contrast_min
+    relief_low = m.relief < th.relief_min
+    if lean_low and relief_low:
+        return DeepVerdict("swap", "the face lacks both 3D signs of a real face: the cheeks lean less towards "
+                                   "their screen halves and the face patches respond too evenly", True, True)
+    if lean_low or relief_low:
+        which = "lean" if lean_low else "relief"
+        return DeepVerdict("real", f"one 3D sign ({which}) is low, the other is normal: not enough to call a swap",
+                           lean_low, relief_low)
+    return DeepVerdict("real", "both 3D signs (lean and relief) are within the genuine range", False, False)
+
+
+# --- command line: python -m lumen.deepcheck calibrate|check <records or session folders> --------
+
+def _load(path: str) -> dict:
+    from lumen.record import load_record
+
+    p = Path(path)
+    return load_record(p / "record.json" if p.is_dir() else p)
+
+
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+    import sys
+
+    p = argparse.ArgumentParser(prog="python -m lumen.deepcheck", description="3D lean + relief swap check")
+    sub = p.add_subparsers(dest="cmd", required=True)
+    c = sub.add_parser("calibrate", help="bounds from GENUINE sessions only")
+    c.add_argument("records", nargs="+")
+    c.add_argument("--out", default="data/deep_thresholds.json")
+    c.add_argument("--k", type=float, default=DEFAULT_K)
+    j = sub.add_parser("check", help="judge sessions")
+    j.add_argument("records", nargs="+")
+    j.add_argument("--thresholds", default="data/deep_thresholds.json")
+    a = p.parse_args(argv)
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+
+    if a.cmd == "calibrate":
+        th = calibrate_deep([deep_measures(_load(r)) for r in a.records], k=a.k)
+        th.save(a.out)
+        print(f"calibrated from {th.n_genuine} genuine sessions: lean >= {th.contrast_min}, "
+              f"relief >= {th.relief_min} (k = {th.k}) -> {a.out}")
+        return 0
+    th = DeepThresholds.load(a.thresholds)
+    print(f"bounds: lean >= {th.contrast_min}, relief >= {th.relief_min} (from {th.n_genuine} genuine sessions)")
+    for r in a.records:
+        m = deep_measures(_load(r))
+        v = judge(m, th)
+        lean = "-" if not m or m.cheek_contrast is None else f"{th.contrast_sign * m.cheek_contrast:+.3f}"
+        rel = "-" if not m or m.relief is None else f"{m.relief:.3f}"
+        sim = " (SIMULATED)" if m and m.simulated else ""
+        name = m.session if m else r
+        print(f"{name:34s} lean {lean:>7s}  relief {rel:>6s}  -> {v.decision.upper()}: {v.reason}{sim}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

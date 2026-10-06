@@ -51,3 +51,78 @@ def test_a_weakened_face_lean_lowers_the_ratio_but_not_the_neck():
     m = lean_measures(t, p, regions, max_lag_s=0.2)
     assert m.neck_contrast == pytest.approx(0.4, abs=0.05)
     assert m.lean_ratio == pytest.approx(1.4, abs=0.25)
+
+
+# --- 3D relief and the two-sign judgement --------------------------------------------------------
+
+from lumen.deepcheck import (DeepMeasures, DeepThresholds, SUBREGIONS, calibrate_deep, deep_measures,  # noqa: E402
+                             judge, relief)
+from lumen.features import segment_spectra  # noqa: E402
+
+
+def _patch_segs(gains, noise, seed=2):
+    """Face patches responding to a split probe with the given gains (+ noise): name -> SegmentSpectra."""
+    t, p, _ = _series({}, seed=seed)
+    rng = np.random.default_rng(seed)
+    segs = {}
+    for name, g in zip(SUBREGIONS, gains):
+        x = 0.05 * g * (0.5 * p[:, :2] + 0.5 * p[:, 2:]) + noise * rng.standard_normal((len(t), 2))
+        segs[name] = segment_spectra(p, x, 30.0, 60)
+    return segs
+
+
+def test_relief_is_high_for_uneven_patches_and_low_for_even_ones():
+    real = relief(_patch_segs([0.8, 2.2, 1.8, 1.3, 2.4], noise=0.02))
+    flat = relief(_patch_segs([1.5] * 5, noise=0.02))
+    assert real > 0.3
+    assert flat < 0.05
+
+
+def test_relief_is_not_inflated_by_noise():
+    """Noise makes a plain gain estimate wobble from patch to patch; the split-half estimate does not."""
+    noisy_flat = relief(_patch_segs([1.5] * 5, noise=0.2))
+    assert noisy_flat < 0.12
+
+
+def _m(contrast=0.48, rel=0.40, neck=0.6, floor=0.045):
+    return DeepMeasures("s", contrast, 0.03, rel, 0.03, neck, floor)
+
+
+TH = DeepThresholds(contrast_min=0.35, relief_min=0.24, contrast_sign=1, k=2.0, n_genuine=3, sessions=())
+
+
+@pytest.mark.parametrize("m, decision", [
+    (_m(), "real"),
+    (_m(contrast=0.33), "real"),            # one sign low is not enough
+    (_m(rel=0.15), "real"),
+    (_m(contrast=0.33, rel=0.15), "swap"),  # both low: the measured FaceFusion case
+    (_m(neck=0.10), "abstain"),             # probe too weak to judge
+    (None, "abstain"),
+])
+def test_judge_needs_both_signs_low(m, decision):
+    assert judge(m, TH).decision == decision
+
+
+def test_calibration_uses_genuine_only_and_learns_a_mirrored_sign():
+    genuine = [_m(contrast=-c, rel=r) for c, r in ((0.50, 0.48), (0.53, 0.41), (0.42, 0.45))]
+    th = calibrate_deep(genuine)
+    assert th.contrast_sign == -1 and th.n_genuine == 3
+    assert 0.0 < th.contrast_min < 0.42 and 0.0 < th.relief_min < 0.41
+    assert judge(_m(contrast=-0.48, rel=0.44), th).decision == "real"
+    with pytest.raises(ValueError):
+        calibrate_deep(genuine[:2])
+
+
+def test_deep_measures_on_a_simulated_session(tmp_path):
+    from conftest import FakeDisplay
+    from lumen.decide import Thresholds
+    from lumen.record import load_record
+    from lumen.session import Session, SessionConfig
+
+    cfg = SessionConfig(source="synthetic:genuine", duration_s=12.0, warmup_s=1.0, segment_s=1.0,
+                        out_dir=str(tmp_path / "s"), key_path=str(tmp_path / "k.pem"),
+                        thresholds_path=str(tmp_path / "t.json"))
+    r = Session(cfg, display_factory=lambda c: FakeDisplay(), thresholds=Thresholds(min_duration_s=3.0)).run()
+    m = deep_measures(load_record(r.record_path))
+    assert m is not None and m.simulated
+    assert m.cheek_contrast > 0.2 and m.relief is not None

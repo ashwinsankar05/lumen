@@ -406,3 +406,48 @@ alone:
 
 The neck's lean is smaller and noisier than the cheeks', so dividing by it adds noise. Not
 usable as a reference. Not tested on swap sessions: none of them saved video.
+
+## 2026-10-06 — Deep check: 3D relief + lean, the two-sign swap check (offline re-analysis)
+
+Third candidate, `src/lumen/deepcheck.py` (`python -m lumen.deepcheck calibrate|check`). Separate
+from the verdict path: the demo, the call launcher and decide.py are unchanged.
+
+**Prediction, stated before the data was looked at:** a generator that recolours its output face
+from the frame's overall colour spreads the probe evenly over the face, while on a real face the
+nose and chin (standing out towards the screen) respond more strongly than forehead and cheeks.
+**Relief** = coefficient of variation of the five face patches' probe gains, each gain estimated
+noise-free from two independent halves of the segments.
+
+Data: the attacker-laptop sessions of the local swap test (records copied from that laptop, all
+signatures valid; same conditions as the entry above), and every genuine local session on the
+dev laptop. No new recordings.
+
+| | Relief | Lean (cheek contrast) |
+|---|---|---|
+| Swap off, CF1–CF5 (attacker laptop) | 0.249–0.484 | +0.422 to +0.527 |
+| **Swap on, CS1, CS2** | **0.145, 0.160** | **+0.339, +0.349** |
+| Genuine, dev laptop, 17 sessions (rooms, days, people) | 0.237–0.513 | +0.193 to +0.589 |
+| Through Google Meet: genuine CG1–CG6 / swap CS1, CS2 | 0.21–0.73 / 0.41, 0.30 | — |
+
+On the real face the nose and chin responded about twice as strongly as the forehead (attacker
+laptop: nose 1.4–2.7, chin 1.7–2.7, forehead 0.7–1.1, relative to the neck); under the swap all
+patches came out between 0.9 and 1.7.
+
+**Judgement rule:** swap only when BOTH relief and lean are below genuine-only bounds
+(mean − 2·sqrt(sd² + SE²)). Rule fixed before the held-out sessions below were judged.
+
+1. Protocol order on the attacker laptop: calibrated on CF1–CF3 (lean ≥ +0.3498, relief ≥
+   0.2361), then judged the later sessions: **CS1 swap, CS2 swap, CF4 real, CF5 real (4/4)**.
+   Margins are thin: CS2's lean +0.349 against +0.3498; CF4's relief 0.249 against 0.236.
+2. False alarms on the dev laptop: calibrated on E1–E3 (lean ≥ +0.3979, relief ≥ 0.3365), judged
+   11 other genuine sessions (G1–G3, J2–J4, demo sessions; other days, rooms and people): **11 real,
+   0 swap**; one 30 s demo session abstained (probe too weak). **Relief alone would have flagged
+   4 of the 11** (G1 0.322, e1c7 0.287, f2cc 0.237, cf18 0.246): relief varies between sittings,
+   so it is only usable as the second of two signs.
+3. Through Google Meet the relief does not separate (swap 0.41 and 0.30 inside the genuine range):
+   **the deep check is not validated for calls**, only with the probe on the subject's own screen.
+
+What this is and is not: two live-swap sessions from one generator (FaceFusion), one subject on
+one laptop, and the thresholds from three sessions each. A promising physical sign that matched a
+stated prediction, not a validated detector. Next: more swap and swap-off sessions (with
+`--save-video`), a second subject, a second generator.

@@ -67,6 +67,13 @@ auditorium, laptop webcam, local screen probe; details in `docs/RESULTS.md`):**
   LUMEN did not detect it.** The swap lowered the cheek lean (off +0.42 to +0.53, n = 5; on
   +0.34 and +0.35, n = 2; about −29 %), but stayed above the genuine-only L3 bound (+0.28).
   FaceFusion keeps about 70 % of the lean: the L3 hypothesis holds only partly for it.
+- Deep check (`src/lumen/deepcheck.py`, offline, separate from the verdict): **3D relief**, the
+  spread of the face patches' probe gains (nose and chin respond about twice as strongly as the
+  forehead on a real face). Swap 0.145 and 0.160 against genuine 0.24–0.51 (22 local sessions,
+  two laptops). Rule: swap only if relief AND lean are both below genuine-only bounds. Calibrated
+  on CF1–CF3, it judged CS1, CS2 swap and CF4, CF5 real (thin margins); 0 false alarms in 11
+  other genuine sessions. **Not validated through a call** (Meet compression erases the relief),
+  n = 2 swaps, one generator: promising, not proven.
 
 Design decisions:
 
