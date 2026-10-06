@@ -198,6 +198,21 @@ mean − 3 x sqrt(sd² + mean SE²). For G1–G3 it moves from 0.500 to **0.453*
 recorded with the sessions above were computed with the old rule; recalibrate to apply the new
 one. No session's measured values change.
 
+## 2026-10-06 — First call check through Google Meet: INVALID (probe never reached the subject)
+
+Verifier laptop in call mode (`--emit virtualcam`, amplitude 32, split, 30 s), subject on a second
+laptop in a Google Meet call, subject's tile read from the verifier's screen
+(`screen:74,88,1763,882`, tile updating at ~20 fps). Session `20261006-123333-CALL-SMOKE-2560`.
+
+- Neck coherence 0.183, face 0.119, noise floor 0.154 (K = 26); background/neck gain 0.61;
+  verdict abstain ("probe not detected on the neck reference").
+- Afterwards the subject reported that **neither the grey warm-up nor the flicker appeared on
+  their screen**: Meet on the verifier laptop was not showing the OBS Virtual Camera feed. The
+  numbers are what no probe looks like (neck ≈ floor, background ≈ neck). Not evidence about the
+  probe through a codec; kept as a procedure failure.
+- Procedure fix: before any call session, send a visible test pattern into the virtual camera,
+  select "OBS Virtual Camera" in Meet while it runs, and have the subject confirm they see it.
+
 ## 2026-10-06 — Codec survival on real recordings (offline re-encode, not a live call)
 
 G1–G3's lossless 640x480 recordings re-encoded through PyAV (libx264 veryfast/zerolatency,
