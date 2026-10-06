@@ -56,8 +56,12 @@ auditorium, laptop webcam, local screen probe; details in `docs/RESULTS.md`):**
 - Replay R1 (G1's video replayed against a new code): rejected (neck 0.094 vs floor 0.078).
 - Lamp L1 (torch on the face, genuine subject): abstained via the lamp gate; L1 and L3 alone
   would have falsely rejected.
-- **Not yet measured: any live face swap**, and anything through a real call. The L3 claim
-  (a swap lacks the cheek lean) is still a hypothesis until session S runs (`docs/SWAP_SETUP.md`).
+- Through a Google Meet call (2026-10-06): three genuine sessions verify with the cheek lean
+  intact (+0.43 to +0.48); compression weakens the probe (neck 6–8x the floor at best, 2–4x
+  once lighting drifted). A live FaceFusion swap was **not verified in 2 of 2 attempts** (abstain,
+  then reject by the replay rule), and in both matched pairs the swap's cheek lean was lower
+  (+0.43 → +0.33, +0.31 → +0.19, ~1.6 SE each). **Not yet conclusive for L3**: weak signal and
+  drifting conditions. Next: the same swap test locally on the attacker laptop, without Meet.
 
 Design decisions:
 

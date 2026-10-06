@@ -198,6 +198,44 @@ mean − 3 x sqrt(sd² + mean SE²). For G1–G3 it moves from 0.500 to **0.453*
 recorded with the sessions above were computed with the old rule; recalibrate to apply the new
 one. No session's measured values change.
 
+## 2026-10-06 — Live face swap through a Google Meet call (FaceFusion)
+
+Verifier laptop in call mode (split probe, amplitude 34, 90–120 s, `--emit virtualcam`), subject
+on a second laptop in a Meet call, tile read at ~30 fps from the verifier's screen
+(`screen:74,88,1763,882`). Attack: FaceFusion live swap (webcam → FaceFusion → OBS window capture
+→ OBS Virtual Camera → Meet), source face a consenting person's photo. Genuine "Real" path:
+webcam straight to Meet. Call calibration from CG1–CG3 (`data/thresholds-call.json`: cheek
+contrast ≥ 0.329, face/neck ratio ≥ 1.07, gain 1.11–3.48, lightness ≤ 1.34).
+
+| Session | Path | Face / neck coh. (floor) | Cheek contrast ± SE (right / left) | Verdict |
+|---|---|---|---|---|
+| CG1 `125001-CG1-dfd4` | webcam → Meet | 0.484 / 0.343 (0.046) | +0.479 ± 0.040 | verify (provisional) |
+| CG2 `125300-CG2-5677` | webcam → Meet | 0.455 / 0.275 (0.049) | +0.461 ± 0.010 | verify (provisional) |
+| CG3 `125542-CG3-e2e0` | webcam → Meet | 0.502 / 0.375 (0.046) | +0.431 ± 0.044 (+0.209 / −0.222) | verify (provisional) |
+| **CS1** `130047-CS1-swap-8123` | **FaceFusion swap** | 0.184 / 0.096 (0.046) | +0.332 ± 0.087 (+0.100 / −0.232) | **abstain** (weak) |
+| CG4 `131818-CG4-1472` | webcam → Meet | – / 0.060 (0.046) | +0.221 ± 0.195 | abstain (no probe) |
+| CG5 `132601-CG5-4f52` | webcam → Meet | – / 0.099 (0.045) | +0.216 ± 0.061 | abstain (weak) |
+| CG6 `132933-CG6-65d4` | webcam → Meet | 0.196 / 0.167 (0.046) | +0.343 ± 0.033 (+0.148 / −0.195) | abstain (weak) |
+| CF1 `133426-CF1-ff-noswap-cb82` | FaceFusion, swap off | 0.112 / 0.085 (0.035) | +0.309 ± 0.025 (+0.097 / −0.212) | abstain (weak) |
+| **CS2** `133828-CS2-swap-07d5` | **FaceFusion swap** | 0.070 / 0.065 (0.034) | +0.187 ± 0.072 (+0.115 / −0.072) | **reject** (replay rule) |
+
+Reading:
+
+- **The live swap was not verified in either attempt** (CS1 abstain, CS2 reject).
+- **Neither is a clean L3 result.** CS2 was rejected by the replay rule (neck 1.9x the floor, just
+  under 2x, face–neck 0.58), not by L3. Signal through Meet plus the FaceFusion → OBS path was
+  2–4x the floor (vs ~12x locally), and the subject's lighting and framing drifted after CG3
+  (face brightness 44–48 → 66 in CG5; face size 35 → 28 px between CF1 and CS2). CS1 ran after
+  the drift had started and its genuine comparison (CG3) used a different path.
+- **Direction consistent with the hypothesis:** in both matched pairs the swap had less cheek
+  lean than its genuine comparison (CG3 +0.431 → CS1 +0.332; CF1 +0.309 → CS2 +0.187), each time
+  with one cheek's lean largely gone. Each difference is ~1.6 SE: suggestive, not conclusive.
+- The FaceFusion → OBS path alone roughly halves the response (CG6 neck 0.167 vs CF1 0.085, same
+  conditions minutes apart), so a swap test needs a genuine control through the same path.
+- Next, to make L3 conclusive: run the swap test **locally on the attacker laptop** (probe full
+  screen on that laptop, source = OBS Virtual Camera for CF/CS and the webcam for G), which removes
+  Meet compression in both directions, and alternate CF/CS pairs several times without moving.
+
 ## 2026-10-06 — Call check 2 through Google Meet: the probe and the cheek lean survive the call
 
 Same call as below, after selecting "OBS Virtual Camera" in Meet while a test pattern ran (both
