@@ -477,7 +477,7 @@ def main(argv: list[str] | None = None) -> int:
                      duration_s=a.duration, amplitude=a.amplitude, save_video=not a.no_video)
     if a.http:
         print(f"LUMEN verification link: http://localhost:{a.port}  (this laptop only)")
-        uvicorn.run(app, host="127.0.0.1", port=a.port, log_level="warning")
+        serve_forever(app, host="127.0.0.1", port=a.port)
         return 0
     ips = local_ips()
     cert, key = Path("data/web/cert.pem"), Path("data/web/cert-key.pem")
@@ -489,9 +489,34 @@ def main(argv: list[str] | None = None) -> int:
     print("The first time, Chrome warns 'Your connection is not private': Advanced -> Proceed.")
     print("If Windows asks, allow Python on PRIVATE networks. Ctrl+C stops.")
     time.sleep(0.1)
-    uvicorn.run(app, host="0.0.0.0", port=a.port, ssl_certfile=str(cert), ssl_keyfile=str(key),
-                log_level="warning")
+    serve_forever(app, host="0.0.0.0", port=a.port, ssl_certfile=str(cert), ssl_keyfile=str(key))
     return 0
+
+
+def serve_forever(app, **config) -> None:
+    """Run uvicorn on a selector event loop, restarting it if it ever stops.
+
+    Windows' default proactor loop stops accepting connections for good after WinError 64 ("the
+    specified network name is no longer available"), which a phone hotspot that drops for a moment
+    causes (measured 2026-10-07: the link stopped loading mid-test). The selector loop logs a failed
+    accept and keeps listening.
+    """
+    import asyncio
+
+    import uvicorn
+
+    while True:
+        server = uvicorn.Server(uvicorn.Config(app, loop="none", log_level="warning", **config))
+        try:
+            asyncio.run(server.serve(), loop_factory=asyncio.SelectorEventLoop)
+        except KeyboardInterrupt:
+            return
+        except Exception as exc:  # noqa: BLE001  keep the link up through network hiccups
+            print(f"server stopped ({type(exc).__name__}: {exc}); restarting in 2 s")
+        else:
+            if server.should_exit:  # Ctrl+C
+                return
+        time.sleep(2.0)
 
 
 if __name__ == "__main__":
