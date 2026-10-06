@@ -47,8 +47,17 @@ calibration. Abstaining is a feature; never guess to avoid it.
 
 ## 4. Status (started 2026-10-05)
 
-Built from scratch starting 2026-10-05. **Nothing has been measured yet**: every test runs on
-synthetic signals with known ground truth. `docs/RESULTS.md` is empty until M1 is run.
+Built from scratch starting 2026-10-05. The detector, console, call mode and signed records are
+built and tested on synthetic signals. **First measurements (2026-10-05, one subject, one
+auditorium, laptop webcam, local screen probe; details in `docs/RESULTS.md`):**
+
+- Genuine G1–G3 (60 s each): face/neck coherence 0.86–0.90 over a 0.07 floor; cheek contrast
+  +0.544 to +0.589; all verify under leave-one-out calibration.
+- Replay R1 (G1's video replayed against a new code): rejected (neck 0.094 vs floor 0.078).
+- Lamp L1 (torch on the face, genuine subject): abstained via the lamp gate; L1 and L3 alone
+  would have falsely rejected.
+- **Not yet measured: any live face swap**, and anything through a real call. The L3 claim
+  (a swap lacks the cheek lean) is still a hypothesis until session S runs (`docs/SWAP_SETUP.md`).
 
 Design decisions:
 
@@ -129,7 +138,7 @@ src/lumen/
 console/         single-page operator UI (no CDN)
 models/          YuNet ONNX model (committed, so the demo needs no network)
 experiments/     m1_probe_survival/report.py, codec_survival/run.py; each writes results/ (git-ignored)
-docs/            RESULTS.md (measured only), PROTOCOL.md, DEMO.md
+docs/            RESULTS.md (measured only), PROTOCOL.md, DEMO.md, RUNBOOK.md, SWAP_SETUP.md
 tests/           synthetic-signal tests, pipeline, session, API
 data/            recordings, keys, thresholds (git-ignored)
 ```

@@ -10,9 +10,10 @@ in an Ed25519-signed record that anyone can re-check from the one-time code.
 
 It never asks "does this face look fake?" (see `PROJECT.md` §2).
 
-> **Status (2026-10-05):** the detector, console and records are built and tested on
-> **simulated** signals only. Nothing has been measured on a camera yet; `docs/RESULTS.md` is
-> where measurements will go, and `docs/PROTOCOL.md` says how to take them.
+> **Status (2026-10-06):** built and tested; first real measurements on a laptop webcam (one
+> subject): 3 genuine sessions verify, a replay is rejected, a lamp on the face abstains. A live
+> face swap has **not** been measured yet. Numbers and conditions: `docs/RESULTS.md`. How to run
+> everything yourself: `docs/RUNBOOK.md`.
 
 ## Setup (Windows, laptop CPU)
 
