@@ -126,3 +126,22 @@ def test_deep_measures_on_a_simulated_session(tmp_path):
     m = deep_measures(load_record(r.record_path))
     assert m is not None and m.simulated
     assert m.cheek_contrast > 0.2 and m.relief is not None
+
+
+def test_live_runs_a_session_then_the_deep_check(tmp_path, monkeypatch, capsys):
+    """The live command on a SIMULATED source, with no window (a fake display) and no camera."""
+    from conftest import FakeDisplay
+    import lumen.session
+    from lumen.deepcheck import latest_sessions, main
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(lumen.session, "default_display", lambda cfg: FakeDisplay())
+    assert main(["live", "--source", "synthetic:genuine", "--duration", "24", "--label", "deep-test"]) == 0
+    out = capsys.readouterr().out
+    assert "VERDICT:" in out and "DEEP CHECK" in out and "SIMULATED" in out
+    assert "not calibrated yet" in out
+    # simulated sessions never count as genuine calibration data
+    assert latest_sessions(3, "deep-test") == []
+    folders = list((tmp_path / "data" / "sessions").iterdir())
+    assert len(folders) == 1
+    assert main(["check", str(folders[0])]) == 0

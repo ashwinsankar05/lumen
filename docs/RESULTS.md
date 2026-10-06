@@ -451,3 +451,17 @@ What this is and is not: two live-swap sessions from one generator (FaceFusion),
 one laptop, and the thresholds from three sessions each. A promising physical sign that matched a
 stated prediction, not a validated detector. Next: more swap and swap-off sessions (with
 `--save-video`), a second subject, a second generator.
+
+### Deep check: leave-one-out and calibration sensitivity (2026-10-06, same records)
+
+`experiments/deepcheck/evaluate.py` reproduces the held-out table above exactly, and adds:
+
+- **Attacker laptop, leave-one-out over CF1–CF5:** 0 false alarms in 5. **But calibrated on all
+  five swap-off sessions, CS2 is missed** (relief 0.160 against a bound of 0.154, because CF4's
+  0.249 widens the spread; judged "real, lean low"); CS1 is still caught. Detection is 2/2 or
+  1/2 depending on which genuine sessions calibrate it: the margin is too thin to call robust.
+- **Dev laptop, leave-one-out over 14 genuine sessions** (G1–G3, E1–E3, J2–J4, five demo
+  sessions; other days, rooms and people): **0 false alarms in 14.**
+- The two swap sessions judged by the dev-laptop pool's calibration (lean ≥ +0.3551, relief ≥
+  0.2002): both swap. Confounded: different laptop, camera and screen from the swap sessions, so
+  this is not evidence that one calibration transfers between machines.

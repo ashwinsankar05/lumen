@@ -137,6 +137,23 @@ Full setup with an attacker laptop: `docs/SWAP_SETUP.md`. In short, on the verif
 4. `.venv\Scripts\python -m lumen run --source "screen:x,y,w,h" --emit virtualcam --duration 60 --label CG1`
 5. Calibrate from three genuine **call** sessions before trusting call verdicts.
 
+## 7b. Deep check: 3D relief + lean (live-swap check, local probe only)
+
+Separate from the demo and call menus. Double-click **`lumen-deepcheck.cmd`**: it asks for the
+camera (0 = webcam; for a swap test, the OBS Virtual Camera index and "y" for virtual camera),
+then:
+
+1. **Genuine calibration session** (90 s, video saved). Do it three times with a real face; for a
+   swap test, through the same path with the swap OFF.
+2. **Calibrate** from the three newest genuine calibration sessions (`data\deep_thresholds.json`).
+3. **Live check**: a normal session (L1-L3 verdict) followed by the deep check, which says SWAP
+   only when both the cheek lean and the 3D relief are below the genuine range.
+4. Deep-check the newest session again.
+
+Command line: `python -m lumen.deepcheck live|calibrate|check` (`--help` on each). Reproduce the
+measured results: `python experiments/deepcheck/evaluate.py --help`. Measured: docs/RESULTS.md
+(promising on two FaceFusion sessions, thin margins; not validated through a video call).
+
 ## 8. The four demo scenarios
 
 | Scenario | Command | Expected |

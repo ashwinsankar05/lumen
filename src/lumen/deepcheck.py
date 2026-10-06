@@ -356,48 +356,129 @@ def judge(m: DeepMeasures | None, th: DeepThresholds, neck_floor_multiple: float
     return DeepVerdict("real", "both 3D signs (lean and relief) are within the genuine range", False, False)
 
 
-# --- command line: python -m lumen.deepcheck calibrate|check <records or session folders> --------
+# --- command line: python -m lumen.deepcheck live|calibrate|check -----------------------------
 
-def _load(path: str) -> dict:
+SESSIONS_DIR = Path("data/sessions")
+
+
+def _load(path: str | Path) -> dict:
     from lumen.record import load_record
 
     p = Path(path)
     return load_record(p / "record.json" if p.is_dir() else p)
 
 
+def latest_sessions(n: int, label: str = "", sessions_dir: str | Path = SESSIONS_DIR) -> list[Path]:
+    """The n newest real (not simulated) session folders whose name contains `label`, oldest first."""
+    found = []
+    for d in sorted(Path(sessions_dir).glob("*"), reverse=True):
+        if not (d / "record.json").exists() or (label and label not in d.name):
+            continue
+        try:
+            if _load(d).get("capture", {}).get("simulated"):
+                continue
+        except (OSError, ValueError, KeyError):
+            continue
+        found.append(d)
+        if len(found) == n:
+            break
+    return found[::-1]
+
+
+def describe(m: DeepMeasures | None, th: DeepThresholds | None) -> str:
+    """One line: the two 3D signs, and the deep verdict when calibrated."""
+    if m is None:
+        return "not enough data to measure"
+    sign = th.contrast_sign if th else 1
+    lean = "-" if m.cheek_contrast is None else f"{sign * m.cheek_contrast:+.3f}"
+    rel = "-" if m.relief is None else f"{m.relief:.3f}"
+    sim = "  (SIMULATED)" if m.simulated else ""
+    if th is None:
+        return f"lean {lean}, relief {rel}: not calibrated yet (python -m lumen.deepcheck calibrate ...){sim}"
+    v = judge(m, th)
+    return (f"lean {lean} (needs >= {th.contrast_min}), relief {rel} (needs >= {th.relief_min})"
+            f"  -> {v.decision.upper()}: {v.reason}{sim}")
+
+
 def main(argv: list[str] | None = None) -> int:
     import argparse
     import sys
 
-    p = argparse.ArgumentParser(prog="python -m lumen.deepcheck", description="3D lean + relief swap check")
+    p = argparse.ArgumentParser(prog="python -m lumen.deepcheck",
+                                description="3D lean + relief live-swap check (separate from the main verdict)")
     sub = p.add_subparsers(dest="cmd", required=True)
+
+    lv = sub.add_parser("live", help="one session (probe full screen, L1-L3 verdict) plus the deep check; "
+                                     "whoever runs it must have asked the subject first")
+    lv.add_argument("--source", default="camera:0")
+    lv.add_argument("--duration", type=float, default=90.0)
+    lv.add_argument("--amplitude", type=float, default=34.0)
+    lv.add_argument("--label", default="deep")
+    lv.add_argument("--save-video", action="store_true", help="also save the captured video (lossless)")
+    lv.add_argument("--no-lock", action="store_true", help="leave camera auto-exposure alone (virtual cameras)")
+    lv.add_argument("--thresholds", default="data/thresholds.json", help="L1-L3 calibration")
+    lv.add_argument("--deep-thresholds", default="data/deep_thresholds.json")
+
     c = sub.add_parser("calibrate", help="bounds from GENUINE sessions only")
-    c.add_argument("records", nargs="+")
+    c.add_argument("records", nargs="*", help="session folders or record files")
+    c.add_argument("--latest", type=int, help="use the N newest sessions instead (with --label)")
+    c.add_argument("--label", default="", help="with --latest: only sessions whose name contains this")
     c.add_argument("--out", default="data/deep_thresholds.json")
     c.add_argument("--k", type=float, default=DEFAULT_K)
-    j = sub.add_parser("check", help="judge sessions")
-    j.add_argument("records", nargs="+")
+
+    j = sub.add_parser("check", help="judge saved sessions")
+    j.add_argument("records", nargs="*")
+    j.add_argument("--latest", type=int, help="judge the N newest sessions instead")
+    j.add_argument("--label", default="")
     j.add_argument("--thresholds", default="data/deep_thresholds.json")
     a = p.parse_args(argv)
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
 
+    if a.cmd == "live":
+        from lumen.__main__ import _print_result
+        from lumen.session import Session, SessionConfig
+
+        cfg = SessionConfig(source=a.source, duration_s=a.duration, amplitude=a.amplitude, label=a.label,
+                            save_video=a.save_video, lock_camera=not a.no_lock, thresholds_path=a.thresholds)
+        session = Session(cfg)
+        print(f"session {session.id}: warm-up {cfg.warmup_s:g} s, then {cfg.duration_s:g} s of split probe. "
+              "Esc aborts.")
+        r = session.run()
+        _print_result(r)
+        th = DeepThresholds.load(a.deep_thresholds) if Path(a.deep_thresholds).exists() else None
+        m = deep_measures(_load(r.record_path)) if r.record_path else None
+        print(f"\n  DEEP CHECK (3D relief + lean): {describe(m, th)}")
+        return 0
+
+    paths = [Path(x) for x in a.records]
+    if a.latest:
+        paths += latest_sessions(a.latest, a.label)
+    if not paths:
+        print("No sessions found" + (f" with '{a.label}' in the name" if a.label else "") +
+              ": record some first (genuine calibration sessions for calibrate).")
+        return 1
+
     if a.cmd == "calibrate":
-        th = calibrate_deep([deep_measures(_load(r)) for r in a.records], k=a.k)
+        measures = [deep_measures(_load(x)) for x in paths]
+        for x, m in zip(paths, measures):
+            print(f"  {x.name:40s} {describe(m, None)}")
+        try:
+            th = calibrate_deep(measures, k=a.k)
+        except ValueError as exc:
+            print(f"Not calibrated: {exc}.")
+            return 1
         th.save(a.out)
         print(f"calibrated from {th.n_genuine} genuine sessions: lean >= {th.contrast_min}, "
               f"relief >= {th.relief_min} (k = {th.k}) -> {a.out}")
         return 0
-    th = DeepThresholds.load(a.thresholds)
-    print(f"bounds: lean >= {th.contrast_min}, relief >= {th.relief_min} (from {th.n_genuine} genuine sessions)")
-    for r in a.records:
-        m = deep_measures(_load(r))
-        v = judge(m, th)
-        lean = "-" if not m or m.cheek_contrast is None else f"{th.contrast_sign * m.cheek_contrast:+.3f}"
-        rel = "-" if not m or m.relief is None else f"{m.relief:.3f}"
-        sim = " (SIMULATED)" if m and m.simulated else ""
-        name = m.session if m else r
-        print(f"{name:34s} lean {lean:>7s}  relief {rel:>6s}  -> {v.decision.upper()}: {v.reason}{sim}")
+
+    th = DeepThresholds.load(a.thresholds) if Path(a.thresholds).exists() else None
+    if th:
+        print(f"bounds: lean >= {th.contrast_min}, relief >= {th.relief_min} (from {th.n_genuine} genuine sessions)")
+    for x in paths:
+        m = deep_measures(_load(x))
+        print(f"{(m.session if m else x.name):36s} {describe(m, th)}")
     return 0
 
 
