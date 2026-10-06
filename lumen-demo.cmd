@@ -71,13 +71,13 @@ goto menu
 
 :genuine
 call :ready || goto menu
-"%PY%" -m lumen run --duration 30 --label demo-genuine
+"%PY%" -m lumen run --duration 60 --label demo-genuine
 goto menu
 
 :lamp
 echo Hold a phone torch 30-50 cm in front of the face, slightly above eye level, aimed at the face.
 call :ready || goto menu
-"%PY%" -m lumen run --duration 30 --label demo-lamp
+"%PY%" -m lumen run --duration 60 --label demo-lamp
 goto menu
 
 :calsession
