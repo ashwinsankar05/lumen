@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LUMEN verification</title>
+<link rel="stylesheet" href="/static/verify.css?v=1">
+</head>
+<body>
+<main id="intro" class="panel">
+  <h1>LUMEN presence check</h1>
+  <p class="lead">Your screen will show a soft, changing colour light for about 100 seconds. Your
+  camera is sent to the verifier, who measures how your face responds to that light. Nothing is
+  installed.</p>
+  <ol class="steps">
+    <li>Screen brightness to <b>100%</b>, charger plugged in.</li>
+    <li>Sit <b>about 40 cm</b> from the screen, facing it, and keep still while it runs.</li>
+    <li>Dim or steady room light is best; avoid a lamp shining on your face.</li>
+  </ol>
+  <div class="camera">
+    <label for="cam">Camera</label>
+    <select id="cam"></select>
+    <video id="preview" autoplay playsinline muted></video>
+  </div>
+  <p id="preflight" class="status">Allow the camera when the browser asks.</p>
+  <label class="consent"><input type="checkbox" id="ready"> I am seated, facing the screen, and ready.</label>
+  <button id="start" disabled>Start</button>
+  <p class="small">Esc stops. The light is designed to be comfortable, but stop if you are sensitive
+  to flicker.</p>
+</main>
+
+<div id="probe" hidden>
+  <div id="left"></div><div id="right"></div>
+  <div id="hud"></div>
+</div>
+
+<main id="result" class="panel" hidden>
+  <h1 id="verdict">…</h1>
+  <p id="reason" class="lead"></p>
+  <table id="checks"></table>
+  <p id="deep" class="small"></p>
+  <p id="meta" class="small"></p>
+  <p><a id="download" href="#" hidden>Download the signed record</a></p>
+  <button id="again">Run again</button>
+</main>
+
+<script src="/static/probe.js?v=1"></script>
+<script src="/static/verify.js?v=1"></script>
+</body>
+</html>
