@@ -58,12 +58,17 @@ class _PageProbe:
         return np.array(out)
 
 
-def _run_page(client, scenario, t0=100.0, fps=30.0):
+def _run_page(client, scenario, t0=100.0, fps=30.0, shuffle=False):
     """What the page does: start, upload camera frames with capture times, report draw times, finish."""
     params = client.post("/api/sessions", json={"label": f"test-{scenario}"}).json()
     probe = _PageProbe(params)
     scene = SyntheticScene(scenario, lambda: (probe, t0), seed=3)
-    for t in np.arange(t0 - 1.0, t0 + params["duration_s"] + 0.5, 1 / fps):
+    times = np.arange(t0 - 1.0, t0 + params["duration_s"] + 0.5, 1 / fps)
+    if shuffle:  # parallel uploads: neighbouring frames swap places on the way
+        times = times.copy()
+        swap = np.arange(5, len(times) - 1, 40)
+        times[swap], times[swap + 1] = times[swap + 1].copy(), times[swap].copy()
+    for t in times:
         ok, jpg = cv2.imencode(".jpg", scene.render(t), [cv2.IMWRITE_JPEG_QUALITY, 92])
         r = client.post(f"/api/sessions/{params['session_id']}/frame", content=jpg.tobytes(),
                         headers={"X-Capture-T": repr(float(t))})
@@ -94,6 +99,25 @@ def test_genuine_session_through_the_link_verifies_and_signs(client, tmp_path):
     assert rec["capture"]["simulated"] is True
     folder = tmp_path / "sessions" / body["session_id"]
     assert (folder / "video.mkv").exists() and (folder / "video_timestamps.csv").exists()
+
+
+def test_frames_arriving_out_of_order_are_put_in_time_order(client):
+    """Measured through OBS Virtual Camera: 5 and 19 of 2700 frames arrived out of order."""
+    body = _run_page(client, "genuine", shuffle=True).json()
+    assert body["verdict"] == "verify", body["reason"]
+    assert any("out of order" in n for n in body["notes"])
+    assert not body["deep_check"].startswith("not measurable")
+
+
+def test_time_ordered_fixes_an_unsorted_record():
+    from lumen.web import time_ordered
+
+    rec = {"returned": {"t": [1.0, 3.0, 2.0, 3.0], "regions": {"face": ["a", "c", "b", "c2"]},
+                        "pose": [1, 3, 2, 4]}}
+    out = time_ordered(rec)
+    assert out["returned"]["t"] == [1.0, 2.0, 3.0]
+    assert out["returned"]["regions"]["face"] == ["a", "b", "c"]
+    assert rec["returned"]["t"] == [1.0, 3.0, 2.0, 3.0]  # the signed original is not touched
 
 
 def test_replayed_video_through_the_link_is_rejected(client):

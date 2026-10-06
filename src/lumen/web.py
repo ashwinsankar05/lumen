@@ -118,6 +118,15 @@ class WebSession(Session):
         client = client or {}
         self._queue.put(None)
         self._worker.join(timeout=120.0)
+        # Uploads run in parallel, so frames can arrive out of order (measured: 5 and 19 of 2700
+        # through OBS Virtual Camera): put them in capture-time order, dropping repeated times.
+        with self._lock:
+            order = sorted(range(len(self._t)), key=lambda i: self._t[i])
+            keep = [i for n, i in enumerate(order) if n == 0 or self._t[i] > self._t[order[n - 1]]]
+            reordered = len(keep) != len(self._t) or keep != list(range(len(self._t)))
+            self._t = [self._t[i] for i in keep]
+            self._samples = [self._samples[i] for i in keep]
+            self._pose = [self._pose[i] for i in keep]
         self.log = EmissionLog(self.probe, t0=float(t0))
         last = -np.inf
         for t in sorted(float(x) for x in drawn_t):
@@ -129,6 +138,8 @@ class WebSession(Session):
         fps = float((len(ts) - 1) / (ts.max() - ts.min())) if len(ts) > 1 else 0.0
         notes = [f"browser camera: {client.get('camera', '?')}; {self.received} frames received, "
                  f"{self.undecodable} undecodable; page drew {len(self.log)} probe frames"]
+        if reordered:
+            notes.append("frames arrived out of order (parallel uploads) and were put in capture-time order")
         if client.get("dropped"):
             notes.append(f"page dropped {client['dropped']} frames before upload (network backlog)")
         w, h = self.frame_size or (0, 0)
@@ -263,7 +274,10 @@ def create_app(*, out_dir: str = "data/web/sessions", thresholds_path: str = "da
             from lumen.record import load_record
 
             th = DeepThresholds.load(deep_thresholds_path) if Path(deep_thresholds_path).exists() else None
-            deep_line = describe(deep_measures(load_record(r.record_path)), th)
+            try:
+                deep_line = describe(deep_measures(load_record(r.record_path)), th)
+            except Exception as exc:  # noqa: BLE001  a diagnostic must never cost the verdict
+                deep_line = f"not measurable ({type(exc).__name__}: {exc})"
         return JSONResponse(_result_payload(r, deep_line))
 
     @app.get("/api/sessions/{sid}/record")
@@ -334,6 +348,27 @@ def ensure_certificate(cert_path: Path, key_path: Path, ips: list[str]) -> None:
     cert_path.write_bytes(cert.public_bytes(serialization.Encoding.PEM))
 
 
+def time_ordered(record: dict) -> dict:
+    """A copy of a record with its returned frames in capture-time order (repeated times dropped).
+
+    Web sessions recorded before the server sorted frames kept them in arrival order; their signed
+    files are left untouched and analysed through this copy.
+    """
+    t = record["returned"]["t"]
+    order = sorted(range(len(t)), key=lambda i: t[i])
+    keep = [i for n, i in enumerate(order) if n == 0 or t[i] > t[order[n - 1]]]
+    if keep == list(range(len(t))):
+        return record
+    ret = record["returned"]
+    out = dict(record)
+    out["returned"] = {
+        **ret, "t": [t[i] for i in keep],
+        "regions": {k: [v[i] for i in keep] for k, v in ret["regions"].items()},
+        "pose": [ret["pose"][i] for i in keep] if len(ret.get("pose") or []) == len(t) else ret.get("pose", []),
+    }
+    return out
+
+
 def calibrate_web(sessions_dir: str | Path = "data/web/sessions", n: int = 3,
                   thresholds_path: str = "data/thresholds-web.json",
                   deep_path: str = "data/web/deep_thresholds.json", tag: str = "genuine") -> list[str]:
@@ -354,7 +389,7 @@ def calibrate_web(sessions_dir: str | Path = "data/web/sessions", n: int = 3,
                    reverse=True)[:n]
     if len(found) < n:
         raise SystemExit(f"need {n} sessions opened with ?label={tag}, found {len(found)}")
-    recs = [load_record(d / "record.json") for d in sorted(found)]
+    recs = [time_ordered(load_record(d / "record.json")) for d in sorted(found)]
     if any(r.get("capture", {}).get("simulated") for r in recs):
         raise SystemExit("refusing to calibrate from simulated sessions")
     feats = [reanalyse(r) for r in recs]
@@ -388,7 +423,7 @@ def report_web(match: str = "", sessions_dir: str | Path = "data/web/sessions",
     for d in sorted(Path(sessions_dir).glob(f"*{match}*")):
         if not (d / "record.json").exists():
             continue
-        rec = load_record(d / "record.json")
+        rec = time_ordered(load_record(d / "record.json"))
         f, ex = reanalyse(rec), rec.get("extra") or {}
         v = decide(f, th, face_fraction=ex.get("face_fraction", 1.0), pose=ex.get("pose_summary"))
         m = deep_measures(rec)
