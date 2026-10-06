@@ -138,7 +138,7 @@ src/lumen/
 console/         single-page operator UI (no CDN)
 models/          YuNet ONNX model (committed, so the demo needs no network)
 experiments/     m1_probe_survival/report.py, codec_survival/run.py; each writes results/ (git-ignored)
-docs/            RESULTS.md (measured only), PROTOCOL.md, DEMO.md, RUNBOOK.md, SWAP_SETUP.md
+docs/            RESULTS.md (measured only), IMPLEMENTATION.md, PROTOCOL.md, DEMO.md, RUNBOOK.md, SWAP_SETUP.md
 tests/           synthetic-signal tests, pipeline, session, API
 data/            recordings, keys, thresholds (git-ignored)
 ```
