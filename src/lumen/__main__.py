@@ -35,6 +35,8 @@ def _session_args(p: argparse.ArgumentParser, duration: float) -> None:
     p.add_argument("--max-lag", type=float, default=None,
                    help="largest pipeline delay searched, seconds (default 1; 2 with --emit virtualcam)")
     p.add_argument("--no-lock", action="store_true", help="leave camera auto-exposure / auto-WB alone")
+    p.add_argument("--thresholds", default="data/thresholds.json",
+                   help="calibration file to judge with (e.g. data/thresholds-call.json for call sessions)")
 
 
 def _config(a):
@@ -45,7 +47,7 @@ def _config(a):
                          fullscreen=not a.windowed, window_position=(a.monitor_x, 0),
                          save_video=a.save_video, emit=a.emit,
                          max_lag_s=a.max_lag if a.max_lag is not None else (2.0 if a.emit == "virtualcam" else 1.0),
-                         lock_camera=not a.no_lock)
+                         lock_camera=not a.no_lock, thresholds_path=a.thresholds)
 
 
 def _fmt(v) -> str:
@@ -105,7 +107,10 @@ def main(argv: list[str] | None = None) -> int:
     _session_args(sub.add_parser("smoke"), 30.0)
     sub.add_parser("cameras").add_argument("--max-index", type=int, default=5)
     sub.add_parser("pick-region").add_argument("--monitor", type=int, default=1, help="1 = primary screen")
-    sub.add_parser("calibrate").add_argument("session_ids", nargs="+")
+    p = sub.add_parser("calibrate")
+    p.add_argument("session_ids", nargs="+")
+    p.add_argument("--thresholds", default="data/thresholds.json",
+                   help="where to save (keep call calibration separate: data/thresholds-call.json)")
     sub.add_parser("verify").add_argument("record")
     sub.add_parser("reanalyse").add_argument("record")
     a = parser.parse_args(argv)
@@ -170,7 +175,8 @@ def main(argv: list[str] | None = None) -> int:
 
         feats, poses = _calibration_inputs(a.session_ids)
         th = calibrate(feats, poses=poses)
-        th.save(SessionConfig().thresholds_path)
+        th.save(a.thresholds)
+        print(f"saved to {a.thresholds}")
         print(json.dumps(th.to_dict(), indent=2))
         return 0
 
