@@ -198,6 +198,36 @@ mean − 3 x sqrt(sd² + mean SE²). For G1–G3 it moves from 0.500 to **0.453*
 recorded with the sessions above were computed with the old rule; recalibrate to apply the new
 one. No session's measured values change.
 
+## 2026-10-06 — Codec survival on real recordings (offline re-encode, not a live call)
+
+G1–G3's lossless 640x480 recordings re-encoded through PyAV (libx264 veryfast/zerolatency,
+libvpx realtime cpu-used 8, 4:2:0), decoded and re-analysed with YuNet regions
+(`experiments/codec_survival/run.py --session …`). Bitrates scaled from the 320x240 settings x4.
+
+| Codec | Face coh. | Neck coh. | Cheek contrast ± SE |
+|---|---|---|---|
+| none | 0.83–0.88 | 0.83–0.90 | +0.547 … +0.582 (± 0.02–0.04) |
+| H.264 2400 kbps | 0.29–0.41 | 0.65–0.72 | **+0.44 … +0.47** (± 0.04–0.09) |
+| H.264 1200 kbps | 0.15–0.22 | 0.53–0.62 | +0.17 … +0.43 (± 0.08–0.16) |
+| H.264 600 kbps | 0.12–0.20 | 0.42–0.50 | +0.24 … +0.39 (± 0.14–0.19) |
+| H.264 320 kbps | 0.11–0.15 | 0.38–0.47 | +0.04 … +0.20 (± 0.04–0.21) |
+| VP8 1200 kbps | 0.08–0.11 | 0.11–0.22 | −0.12 … +0.19 (± 0.12–0.21) |
+| VP8 600 kbps | 0.08 | 0.10–0.13 | +0.07 … +0.15 (± 0.07–0.21) |
+
+Floor 0.068–0.069 (K = 58).
+
+Reading:
+
+- Worse than the simulation predicted. Compression removes the probe from the **face far more
+  than from the neck** (face 0.29–0.41 vs neck 0.65–0.72 at 2.4 Mbps H.264), so the genuine L1
+  face/neck ratio falls from ~1.0 to ~0.5: uncompressed calibration would falsely reject a
+  genuine call. Calibration must go through the call.
+- The cheek lean survives good H.264 (+0.44–0.47 at 2.4 Mbps) and degrades into noise at
+  ≤ 1.2 Mbps; with these VP8 settings the probe barely survives at all.
+- Offline encoder settings, not Meet's. Consequences for the live call test: maximise video
+  quality (720p send/receive), probe amplitude raised to 32 for all call sessions, and expect
+  abstains rather than verdicts if the call's bitrate is low.
+
 ## 2026-10-05 — Call-mode output: colour through the OBS virtual camera (no subject)
 
 OBS Studio 32.2.2 installed; LUMEN's `VirtualCamDisplay` (pyvirtualcam, 1280x720, 30 fps) fed a
