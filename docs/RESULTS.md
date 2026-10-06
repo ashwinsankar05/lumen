@@ -584,3 +584,34 @@ Code: `judge_temporal` in `src/lumen/deepcheck.py` (constants pinned by a test).
   2. two sessions through FaceFusion with the **swap on** (`?label=ff-swap2`): prediction **pipeline**;
   3. two sessions through FaceFusion with the **swap off** (`?label=ff-off2`): prediction **direct**.
 - **Pass:** all seven as predicted. Anything else is reported as it is, and the limits stay as written.
+
+### Temporal fidelity: outcome of the test fixed before new data (2026-10-07, ~03:00–03:30 IST)
+
+Same link setup and attacker laptop as above; rule and plan as written before the sessions
+(commit 6572d85). The direct-webcam sessions were tagged `ff-genuine` instead of `fw-genuine` and
+the first swap sessions `ff-swap` instead of `ff-swap2`; they are identified by the camera recorded
+in each signed record and by order. The direct-webcam camera reports the same USB id as the dev
+laptop's ("Integrated Camera (5986:11ad)"), so whether these ran on the attacker laptop or the dev
+laptop is not established by the records.
+
+| Session | Camera | Ratio 5–8/2–4.5 Hz | Delay | Rule | Predicted |
+|---|---|---|---|---|---|
+| ff-genuine-c5a5 | Integrated Camera | 0.88 | 0.133 s | direct | direct ✓ |
+| ff-genuine-c8a3 | Integrated Camera | 0.94 | 0.133 s | direct | direct ✓ |
+| ff-genuine-4339 | Integrated Camera | 0.88 | 0.133 s | direct | direct ✓ |
+| ff-swap-baa6 (swap on) | OBS Virtual Camera | **0.64** | 0.300 s | **direct** | pipeline ✗ |
+| ff-swap2-b814 (swap on) | OBS Virtual Camera | 0.57 | 0.300 s | pipeline | pipeline ✓ |
+| ff-off2-f808 (swap off) | OBS Virtual Camera | 0.76 | 0.167 s | direct | direct ✓ |
+
+Not judged: ff-swap-27ce (the hotspot dropped mid-session; no record: without the page's draw times
+there is nothing to sign) and ff-off2-0b20 (network backlog: 17 of ~2900 frames arrived; abstained).
+ff-genuine-ddd7 was also cut off by the first hotspot drop.
+
+**Result: 5 of 6 judged sessions as predicted. The test FAILS** (pass required all as predicted):
+one swap session had a fast/slow ratio of 0.64, above the 0.60 limit. The limits are not moved.
+
+Observation made after this test, therefore a lead and not a result: the delay alone separates
+every session measured so far. Swap on: 0.300–0.333 s (8 sessions: local 2, link 2 + 2 here, plus
+the earlier link pair); everything else on the same laptops (direct webcams, swap off, lamp):
+0.100–0.167 s (21 sessions). A delay-only rule would need its own test, fixed in advance, and a
+check that slow genuine cameras (USB, external, high-resolution) stay under it.
