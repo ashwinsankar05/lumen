@@ -376,6 +376,21 @@ def time_ordered(record: dict) -> dict:
     return out
 
 
+def with_pipeline_delay(th: Thresholds) -> Thresholds:
+    """Switch on L4 for the link: reject when the video answers the light later than 0.25 s.
+
+    The limit is the one fixed before the 2026-10-07 test (deepcheck.TEMPORAL_LAG_MAX_S), where it
+    alone was right on all six new sessions; it is ~1.5x the slowest real camera path measured
+    (0.167 s, a genuine face through FaceFusion + OBS with the swap off). Known weakness: the page
+    reports its own timestamps, so a modified page could hide a delay (docs/RESULTS.md).
+    """
+    from dataclasses import replace
+
+    from lumen.deepcheck import TEMPORAL_LAG_MAX_S
+
+    return replace(th, pipeline_lag_max_s=TEMPORAL_LAG_MAX_S)
+
+
 def calibrate_web(sessions_dir: str | Path = "data/web/sessions", n: int = 3,
                   thresholds_path: str = "data/thresholds-web.json",
                   deep_path: str = "data/web/deep_thresholds.json", tag: str = "genuine") -> list[str]:
@@ -403,6 +418,7 @@ def calibrate_web(sessions_dir: str | Path = "data/web/sessions", n: int = 3,
     if any(f is None for f in feats):
         raise SystemExit("a genuine session has too little data to calibrate from; record another")
     th = calibrate(feats, poses=[(r.get("extra") or {}).get("pose_summary") for r in recs])
+    th = with_pipeline_delay(th)
     th.save(thresholds_path)
     deep = calibrate_deep([deep_measures(r) for r in recs])
     deep.save(deep_path)

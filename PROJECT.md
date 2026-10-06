@@ -35,6 +35,7 @@ amounts to "train a model to recognise fake faces", it is out of scope.
 | L1 Coherence | Does the face's colour track the emitted probe as well as the neck does? (multiple coherence in the probe band) | Unlit swaps, whole-frame fakes, replays |
 | L2 Differential gain | Do face, neck and background respond in physically possible proportions? Light falls off steeply with distance | Attackers who relight their output uniformly |
 | L3 Lateral response | Do the cheeks lean towards the halves of the screen they face, as much as a real face's do? | Generators that inherit the probe from the camera frame (to be measured in M1) |
+| L4 Pipeline delay (verification link only) | Does the video answer the light as fast as a real camera (≤ 0.25 s)? | A live face swap rendering every frame (measured: 0.30 s vs real cameras 0.10–0.17 s) |
 
 The neck is the reference channel, not the background: it is real skin, at nearly the same
 distance, in the same camera, codec and network path, and a face-swap has no reason to touch it.
@@ -82,6 +83,11 @@ auditorium, laptop webcam, local screen probe; details in `docs/RESULTS.md`):**
   the swap pipeline adds ~0.15–0.2 s of delay and smears fast flicker (neck 5–8 Hz ÷ 2–4.5 Hz
   coherence 0.29–0.57 with the swap on, 0.61–0.80 off, 0.83–0.97 for a direct webcam); 4/4 swap
   sessions, 0/10 swap-off. Not through Google Meet. A lead for a "temporal fidelity" layer.
+- A test fixed in advance (fast/slow ratio < 0.60 AND delay > 0.25 s) judged 5 of 6 new sessions
+  as predicted, so it failed (one swap at ratio 0.64); the delay limit alone was right on all six.
+  **Final link rules: L1–L3 + L4 pipeline delay (> 0.25 s rejects): all 4 link swap sessions
+  rejected, 0 of 13 genuine rejected** (3 abstain). One generator, one attacker laptop, one
+  subject; a modified page could fake its timestamps (server-side timing is future work).
 
 Design decisions:
 

@@ -59,6 +59,9 @@ class Thresholds:
     max_abs_yaw: float | None = None              # 2. pose gate
     min_ipd_px: float | None = None               # 2. distance gate (face size in the camera)
     face_neck_lightness_max: float | None = None  # 4. lamp gate
+    # L4 pipeline delay: opt-in, set only for the verification link (None: off, as for the local demo
+    # and calls, where the call's own delay of 1-1.5 s would swamp it)
+    pipeline_lag_max_s: float | None = None
 
     def neck_gate(self, noise_floor: float) -> float:
         return max(self.neck_gate_min, self.neck_gate_floor_multiple * noise_floor)
@@ -231,11 +234,21 @@ def decide(
     if l3 is False:
         return done("reject", "the cheeks do not lean towards the halves of the screen they face "
                               "as a real 3D face does (L3)")
+    l4 = None
+    if th.pipeline_lag_max_s is not None:
+        l4 = m.lag_s <= th.pipeline_lag_max_s
+        checks.append(Check("L4_pipeline_delay", m.lag_s,
+                            f"<= {th.pipeline_lag_max_s} s (real cameras measured: 0.10-0.17 s)", l4))
+    if l4 is False:
+        return done("reject", f"the video answers the light {m.lag_s:.2f} s late, later than any real camera "
+                              "measured: a processing pipeline (such as a live face swap) sits in between (L4)")
     reason = "face and neck respond to today's probe together, in plausible proportions"
     if l3 is True:
         reason += ", and the cheeks lean towards the halves they face"
     else:
         reason += " (L3 not evaluated)"
+    if l4 is True:
+        reason += ", with a real camera's delay"
     return done("verify", reason)
 
 

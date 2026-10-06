@@ -615,3 +615,28 @@ every session measured so far. Swap on: 0.300–0.333 s (8 sessions: local 2, li
 the earlier link pair); everything else on the same laptops (direct webcams, swap off, lamp):
 0.100–0.167 s (21 sessions). A delay-only rule would need its own test, fixed in advance, and a
 check that slow genuine cameras (USB, external, high-resolution) stay under it.
+
+## 2026-10-07 — Final rules for the verification link: L1–L3 + L4 pipeline delay (re-analysis)
+
+L4 (`Thresholds.pipeline_lag_max_s`, opt-in; switched on only by the link's calibration): reject
+when L1–L3 pass but the video answers the light more than **0.25 s** late. The limit is the one
+fixed before the test above (where it alone was right on all six new sessions); it is ~1.5x the
+slowest real camera path measured (0.167 s). Off for the local demo and for calls (a call's own
+delay is 1.0–1.5 s). Every link session re-judged with its own setup's calibration (attacker
+laptop: ff-genuine 1–3; dev laptop: genuine 1–3):
+
+| Path | Sessions | Verify | Reject | Abstain |
+|---|---|---|---|---|
+| Live FaceFusion swap via the link | 4 (d33c, d65f, baa6, b814) | 0 | **4 (all by L4, delay 0.300 s)** | 0 |
+| Genuine face via FaceFusion + OBS, swap off | 6 | 5 | 0 | 1 (network failure, 17 frames) |
+| Genuine face, direct webcam, attacker-laptop calibration | 3 | 2 | 0 | 1 (distance gate: calibrated through OBS) |
+| Genuine face, dev laptop | 4 | 3 | 0 | 1 (W1, lamp gate, see above) |
+
+**No genuine session rejected (0 of 13); all four swap sessions rejected.** What this rests on,
+stated plainly: one generator (FaceFusion), one attacker laptop and one subject; the 0.25 s limit
+was chosen after the first link swap sessions and then held on six new sessions; 3 of the 4
+rejected swaps were recorded before that test. Known weakness: the page reports its own frame and
+draw times, so a modified page could subtract a constant and hide the delay; closing it needs
+timing the server can check (e.g. a server-anchored clock and arrival-time bounds). Not validated:
+other generators, faster GPUs, external or high-resolution webcams (whose genuine delay may be
+longer).

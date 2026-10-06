@@ -167,3 +167,32 @@ def test_thresholds_round_trip_and_missing_file(tmp_path):
     th.save(tmp_path / "t.json")
     assert load_thresholds(tmp_path / "t.json") == th
     assert load_thresholds(tmp_path / "missing.json") == Thresholds()
+
+
+def _with_lag(lag):
+    f = features()
+    return replace(f, measurement=replace(f.measurement, lag_s=lag))
+
+
+def test_l4_pipeline_delay_is_off_unless_switched_on():
+    """The local demo and call mode never set it: a 1.3 s call delay must not reject anyone."""
+    assert Thresholds().pipeline_lag_max_s is None
+    assert decide(_with_lag(1.3), CALIBRATED).decision == "verify"
+
+
+def test_l4_rejects_a_late_video_and_passes_a_real_camera():
+    """Measured on the link: real cameras 0.10-0.17 s, FaceFusion 0.30-0.33 s."""
+    th = replace(CALIBRATED, pipeline_lag_max_s=0.25)
+    v = decide(_with_lag(0.300), th)
+    assert v.decision == "reject" and "L4" in v.reason
+    ok = decide(_with_lag(0.133), th)
+    assert ok.decision == "verify" and "real camera's delay" in ok.reason
+    assert {c.name: c.passed for c in ok.checks}["L4_pipeline_delay"] is True
+
+
+def test_l4_comes_after_the_physical_layers():
+    """A replay or an unlit face is still reported for what it is, not as a late video."""
+    th = replace(CALIBRATED, pipeline_lag_max_s=0.25)
+    f = features(face=0.1)
+    v = decide(replace(f, measurement=replace(f.measurement, lag_s=0.4)), th)
+    assert v.decision == "reject" and "L1" in v.reason
