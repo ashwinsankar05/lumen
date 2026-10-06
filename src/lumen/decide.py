@@ -259,7 +259,11 @@ def calibrate(genuine: list[Features], base: Thresholds | None = None,
         source=f"calibrated from {len(genuine)} genuine session(s)",
         n_genuine=len(genuine),
         face_to_neck_coherence_min=round(0.8 * min(ratios), 4),
-        gain_range=(round(0.7 * min(gains), 4), round(1.4 * max(gains), 4)),
+        # Face/neck gain differs a lot between people (skin, neck shadow, collar, posture): measured
+        # 0.20-0.84 for real people in one room on 2026-10-06, against 0.43-0.49 for the one person
+        # in that room's calibration. A margin of 1.4x falsely rejected real people, so the range is
+        # wide; L2's attack check is the background falloff, which is unchanged.
+        gain_range=(round(0.4 * min(gains), 4), round(2.0 * max(gains), 4)),
     )
     if bgs := [f.background_gain_ratio for f in genuine if f.background_gain_ratio is not None]:
         updates["background_gain_ratio_max"] = round(max(0.3, 1.5 * max(bgs)), 4)

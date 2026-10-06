@@ -139,7 +139,7 @@ def test_calibrate_from_genuine_sessions_only():
     assert 0.0 < th.cheek_contrast_min < 0.42
     assert th.max_abs_yaw == pytest.approx(0.05 + 0.02 + 0.03)
     assert th.face_neck_lightness_max == pytest.approx(1.09)
-    assert th.gain_range == (pytest.approx(0.63), pytest.approx(1.68))
+    assert th.gain_range == (pytest.approx(0.36), pytest.approx(2.4))  # 0.4 x min, 2 x max
     assert all(decide(f, th).decision == "verify" for f in genuine)
     assert decide(features(contrast=0.1), th).decision == "reject"
 
