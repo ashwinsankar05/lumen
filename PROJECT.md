@@ -74,6 +74,14 @@ auditorium, laptop webcam, local screen probe; details in `docs/RESULTS.md`):**
   on CF1–CF3, it judged CS1, CS2 swap and CF4, CF5 real (thin margins); 0 false alarms in 11
   other genuine sessions. **Not validated through a call** (Meet compression erases the relief),
   n = 2 swaps, one generator: promising, not proven.
+- Verification link (`python -m lumen.web`, 2026-10-07): the subject opens a page; their browser
+  draws the probe and streams the camera; the server measures and signs. Genuine through the link:
+  neck 0.69–0.70 at floor 0.045, cheek +0.53 to +0.61 (dev laptop). **Live FaceFusion swap
+  through the link (attacker laptop over Wi-Fi): verified 2 of 2; not detected** by L1–L3 or the
+  deep check. Exploratory, found after the fact and confirmed on the earlier local swap records:
+  the swap pipeline adds ~0.15–0.2 s of delay and smears fast flicker (neck 5–8 Hz ÷ 2–4.5 Hz
+  coherence 0.29–0.57 with the swap on, 0.61–0.80 off, 0.83–0.97 for a direct webcam); 4/4 swap
+  sessions, 0/10 swap-off. Not through Google Meet. A lead for a "temporal fidelity" layer.
 
 Design decisions:
 

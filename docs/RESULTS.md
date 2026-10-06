@@ -508,3 +508,60 @@ Three genuine sessions opened with `?label=genuine`, after the page's exposure t
   laptop). Likely cause, not yet tested: JPEG 4:2:0 halves the colour resolution and mixes
   neighbouring face patches. Whether relief can still separate a swap through the link is open
   until a swap session runs through it.
+
+## 2026-10-07 — Live face swap through the verification link (attacker laptop -> Wi-Fi -> dev laptop)
+
+- Setup: the attacker laptop opened `https://<dev laptop>:8443` (phone hotspot, self-signed
+  certificate) in Chrome with **OBS Virtual Camera** as the camera: webcam -> FaceFusion (Chrome
+  window) -> OBS Window Capture -> OBS Virtual Camera -> the verification page. The probe filled
+  the attacker laptop's screen; the dev laptop's server did all the measuring. One subject, same
+  seat, 90 s per session, split probe, amplitude 34. Only FaceFusion's swap was toggled. Sessions
+  tagged `ff-genuine` = swap off, `ff-swap` = swap on.
+- Calibration: the attacker path's own genuine sessions, ff-genuine 1–3 (`--calibrate --tag
+  ff-genuine`): L3 cheek contrast >= +0.3437; deep check lean >= +0.4119, relief >= 0.098.
+- Two sessions recorded before the server sorted frames by capture time (5 and 19 of 2700 frames
+  arrived out of order) are analysed in time order; their signed files are unchanged.
+
+| Session | Swap | Neck coh. (floor) | Cheek contrast | Relief | L1–L3 | Deep check |
+|---|---|---|---|---|---|---|
+| ff-genuine-a94e | off | 0.652 (0.045) | +0.477 | 0.211 | verify | real |
+| ff-genuine-dcbe | off | 0.658 (0.045) | +0.605 | 0.135 | verify | real |
+| ff-genuine-5948 | off | 0.660 (0.045) | +0.563 | 0.194 | verify | real |
+| ff-swap-d33c | **on** | 0.528 (0.045) | +0.412 | 0.112 | **verify** | **real** |
+| ff-genuine-b604 | off | 0.706 (0.045) | +0.541 | 0.188 | verify | real |
+| ff-swap-d65f | **on** | 0.514 (0.045) | +0.391 | 0.138 | **verify** | **real** |
+| ff-genuine-41f3 | off | 0.714 (0.045) | +0.560 | 0.293 | verify | real |
+
+**Result: the live swap was verified in 2 of 2 sessions through the link. Neither L1–L3 nor the
+deep check detected it** (the first swap's lean was 0.0001 above the deep bound). As in the local
+test, the swap lowered the cheek contrast (−27 %, both below all five swap-off sessions) and the
+neck response (−23 %), but not past genuine-only bounds.
+
+### Exploratory: the swap pipeline is slow and smears fast flicker (found after the fact)
+
+Looking for why the swap lowered even the neck's response (the swap does not touch the neck),
+two quantities separated swap from swap-off completely. **They were found after looking at the
+link sessions above**, then checked on the earlier local swap sessions (records from the attacker
+laptop, no browser, recorded hours before), which had not been used to find them.
+
+| Data | Neck coherence 5–8 Hz ÷ 2–4.5 Hz | Pipeline delay (lag) |
+|---|---|---|
+| Link, swap off (5) | 0.75–0.80 | 0.167 s (all) |
+| Link, **swap on** (2) | **0.57, 0.53** | **0.300 s** (both) |
+| Local, swap off CF1–CF5 (independent check) | 0.61–0.74 | 0.133 s (all) |
+| Local, **swap on** CS1, CS2 (independent check) | **0.29, 0.34** | **0.333 s** (both) |
+| Dev laptop, genuine, direct webcam (local G/E/J/demo sessions and link W1 + 3; 17) | 0.83–0.97 | 0.100–0.133 s |
+| Lamp L1 (genuine, torch on the face) | 0.77 | 0.133 s |
+| Through Google Meet, genuine CG1–CG6 / swap CS1, CS2 / FaceFusion off CF1 | 0.39–0.81 / 0.48, 0.43 / 0.50 | 1.0–1.5 s |
+
+Reading: a real face reflects the probe instantly, so it follows the fast part of the band nearly
+as well as the slow part, and the delay is the camera's. A face-swap pipeline renders every
+frame, adding ~0.15–0.2 s and smearing fast changes (OBS re-times its output to an even 30 fps,
+so the frame timestamps look regular). 4 of 4 swap sessions show both signs, 0 of 10 swap-off
+sessions on the same laptop do.
+
+Limits: found post hoc (the local data is the only independent check); the direct-webcam range
+comes from one laptop's camera only; through Google Meet it does not separate at all (the call's
+own processing smears every session); a faster GPU or a direct virtual-camera output may shrink
+both effects. A lead for a fourth layer ("temporal fidelity"), not a validated detector; next:
+other webcams for the genuine range, a second generator, thresholds fixed before testing.
