@@ -205,12 +205,28 @@ def check_neck(img, extractor, lock, th: Thresholds) -> dict:
                 outlines[name] = [[round(float(x) / w, 4), round(float(y) / h, 4)] for x, y in c]
     ratio = float(means["face"][0] / max(means["neck"][0], 1e-6))
     limit = th.face_neck_lightness_max or NECK_LIGHTNESS_DEFAULT_MAX
-    ok = ratio <= limit
-    hint = (f"Neck OK (face/neck brightness {ratio:.2f}, limit {limit:.2f})." if ok else
-            f"The neck box (red) is on clothing or in shadow (face/neck brightness {ratio:.2f}, limit "
-            f"{limit:.2f}): sit a little further back, chin level, so bare neck shows below the chin, "
-            "or lower the collar.")
-    return {"face": True, "ok": ok, "ratio": round(ratio, 3), "limit": limit, "outlines": outlines, "hint": hint}
+    # Two questions, two limits. Is the neck region on skin? A collar or shadow puts it far off
+    # (measured 1.70-2.46 against genuine 0.84-1.47): skin_limit = limit + NECK_SKIN_MARGIN. Will the
+    # lamp gate pass? That limit is tight on purpose (a measured lamp moved the ratio by only ~0.03).
+    # The page smooths these over several checks; one frame decides nothing.
+    skin_limit = limit + NECK_SKIN_MARGIN
+    ok = ratio <= skin_limit
+    lamp_ok = ratio <= limit
+    return {"face": True, "ok": ok, "lamp_ok": lamp_ok, "ratio": round(ratio, 3), "limit": limit,
+            "skin_limit": round(skin_limit, 4), "outlines": outlines, "hint": neck_hint(ratio, limit, skin_limit)}
+
+
+NECK_SKIN_MARGIN = 0.35
+
+
+def neck_hint(ratio: float, limit: float, skin_limit: float) -> str:
+    if ratio <= limit:
+        return f"Neck OK (face/neck brightness {ratio:.2f}, limit {limit:.2f})."
+    if ratio <= skin_limit:
+        return (f"Neck found, but the face is a little brighter than the neck ({ratio:.2f}, limit {limit:.2f}): "
+                "face the screen evenly and avoid light from above. You can start; the session may abstain.")
+    return (f"The neck box is on clothing or in shadow (face/neck brightness {ratio:.2f}): sit a little further "
+            "back, chin level, so bare neck shows below the chin, or lower the collar.")
 
 
 def _result_payload(r, deep_line: str | None) -> dict:

@@ -148,7 +148,21 @@
 
   // Neck check: once a second, the server finds the face and neck regions on a camera frame and says
   // whether the neck region is on skin; the outlines are drawn over the preview (green face, red neck).
-  let neckOk = false, neckTimer = null;
+  // One frame decides nothing: the level comes from the median of the last NECK_WINDOW checks, and a
+  // missing face only counts after NECK_MISSES checks in a row.
+  const NECK_WINDOW = 5, NECK_MISSES = 3;
+  let neckOk = false, neckTimer = null, neckRatios = [], neckMisses = 0, neckLevel = "bad";
+  function resetNeck() { neckRatios = []; neckMisses = 0; neckOk = false; neckLevel = "bad"; }
+  function median(xs) { const s = [...xs].sort((a, b) => a - b); return s[Math.floor(s.length / 2)]; }
+  function neckLevelFor(ratio, limit, skin) { return ratio <= limit ? "ok" : ratio <= skin ? "warn" : "bad"; }
+  function neckText(level, ratio, limit) {
+    if (level === "ok") return `Neck OK (face/neck brightness ${ratio.toFixed(2)}, limit ${limit.toFixed(2)}).`;
+    if (level === "warn") return `Neck found, but the face is a little brighter than the neck (${ratio.toFixed(2)}, ` +
+      `limit ${limit.toFixed(2)}): face the screen evenly and avoid light from above. You can start; the session may abstain.`;
+    return `The neck box is on clothing or in shadow (face/neck brightness ${ratio.toFixed(2)}): sit a little ` +
+      "further back, chin level, so bare neck shows below the chin, or lower the collar.";
+  }
+  const LEVEL_COLOUR = { ok: "#6cc4a1", warn: "#e2b96d", bad: "#e26d6d" };
   function drawOutlines(r) {
     const v = $("preview"), cv = $("overlay");
     cv.width = cv.clientWidth; cv.height = cv.clientHeight;
@@ -158,7 +172,7 @@
     const s = Math.min(cv.width / v.videoWidth, cv.height / v.videoHeight);
     const ox = (cv.width - v.videoWidth * s) / 2, oy = (cv.height - v.videoHeight * s) / 2;
     for (const [name, pts] of Object.entries(r.outlines)) {
-      ctx.strokeStyle = name === "neck" ? (r.ok ? "#6cc4a1" : "#e26d6d") : "#7fd37f";
+      ctx.strokeStyle = name === "neck" ? LEVEL_COLOUR[neckLevel] : "#7fd37f";
       ctx.lineWidth = 3; ctx.beginPath();
       pts.forEach(([x, y], i) => { const px = ox + x * v.videoWidth * s, py = oy + y * v.videoHeight * s;
         if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py); });
@@ -175,10 +189,25 @@
       const cam = $("cam").selectedOptions[0] ? $("cam").selectedOptions[0].textContent : "";
       const r = await (await fetch("/api/check-frame", { method: "POST", body: blob,
                                                          headers: { "X-Camera": encodeURIComponent(cam) } })).json();
-      neckOk = !!r.ok;
-      status.className = "status " + (r.ok ? "ok" : "bad");
-      status.textContent = r.hint || "Neck check failed.";
-      drawOutlines(r);
+      if (!r.face || typeof r.ratio !== "number") {
+        neckMisses++;
+        if (neckMisses >= NECK_MISSES) {
+          resetNeck(); neckMisses = NECK_MISSES;
+          status.className = "status bad"; status.textContent = r.hint || "No face found: face the camera, in good light.";
+          drawOutlines(null);
+        }
+      } else {
+        neckMisses = 0;
+        neckRatios.push(r.ratio);
+        if (neckRatios.length > NECK_WINDOW) neckRatios.shift();
+        const m = median(neckRatios);
+        neckLevel = neckLevelFor(m, r.limit, r.skin_limit);
+        neckOk = neckLevel !== "bad";
+        const settling = neckRatios.length < 3 ? " (settling…)" : "";
+        status.className = "status " + neckLevel;
+        status.textContent = neckText(neckLevel, m, r.limit) + settling;
+        drawOutlines(r);
+      }
     } catch (e) {
       neckOk = false; status.className = "status bad"; status.textContent = "Neck check: cannot reach the server.";
     }
@@ -280,7 +309,7 @@
   }
 
   $("ready").addEventListener("change", updateStart);
-  $("cam").addEventListener("change", async () => { await openCamera($("cam").value); speedTried = false; exposureBright = null; preflight(); });
+  $("cam").addEventListener("change", async () => { await openCamera($("cam").value); speedTried = false; exposureBright = null; resetNeck(); preflight(); });
   $("start").addEventListener("click", () => { $("start").disabled = true; run().catch(e => showResult({ verdict: "error", reason: String(e) })); });
   $("again").addEventListener("click", () => { $("result").hidden = true; $("intro").hidden = false; $("ready").checked = false; preflight(); startNeckChecks(); });
 
