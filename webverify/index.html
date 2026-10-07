@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>LUMEN verification</title>
-<link rel="stylesheet" href="/static/verify.css?v=7">
+<link rel="stylesheet" href="/static/verify.css?v=8">
 </head>
 <body>
 <main id="intro" class="panel">
@@ -20,9 +20,10 @@
   <div class="camera">
     <label for="cam">Camera</label>
     <select id="cam"></select>
-    <video id="preview" autoplay playsinline muted></video>
+    <div class="previewbox"><video id="preview" autoplay playsinline muted></video><canvas id="overlay"></canvas></div>
   </div>
   <p id="preflight" class="status">Allow the camera when the browser asks.</p>
+  <p id="neckcheck" class="status">Neck check: waiting for the camera…</p>
   <label class="consent"><input type="checkbox" id="ready"> I am seated, facing the screen, and ready.</label>
   <button id="start" disabled>Start</button>
   <p class="small">Esc stops. The light is designed to be comfortable, but stop if you are sensitive
@@ -44,7 +45,7 @@
   <button id="again">Run again</button>
 </main>
 
-<script src="/static/probe.js?v=7"></script>
-<script src="/static/verify.js?v=7"></script>
+<script src="/static/probe.js?v=8"></script>
+<script src="/static/verify.js?v=8"></script>
 </body>
 </html>

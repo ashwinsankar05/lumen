@@ -154,3 +154,20 @@ def test_self_signed_certificate_covers_this_laptops_addresses(tmp_path):
     before = cert.read_bytes()
     ensure_certificate(cert, key, ["192.168.1.20"])
     assert cert.read_bytes() == before            # reused while still valid
+
+
+def test_neck_check_returns_outlines_and_flags_a_dark_neck(client):
+    """The pre-flight neck check on SIMULATED frames: a normal neck passes, a neck region darkened
+    like a collar (measured 2026-10-07: face/neck lightness 1.6-2.2) is flagged."""
+    probe = _PageProbe(client.post("/api/sessions", json={}).json())
+    scene = SyntheticScene("genuine", lambda: (probe, 100.0), seed=5)
+    img = scene.render(99.0)
+    r = client.post("/api/check-frame", content=cv2.imencode(".jpg", img)[1].tobytes()).json()
+    assert r["face"] and r["ok"] and {"face", "neck"} <= set(r["outlines"])
+    assert all(0 <= x <= 1 and 0 <= y <= 1 for x, y in r["outlines"]["neck"])
+    dark = img.copy()
+    xs, ys = zip(*[(x * img.shape[1], y * img.shape[0]) for x, y in r["outlines"]["neck"]])
+    dark[int(min(ys)):int(max(ys)) + 1, int(min(xs)):int(max(xs)) + 1] //= 3   # a black collar over the neck
+    r2 = client.post("/api/check-frame", content=cv2.imencode(".jpg", dark)[1].tobytes()).json()
+    assert r2["face"] and not r2["ok"] and "clothing" in r2["hint"]
+    assert client.post("/api/check-frame", content=b"not a jpeg").status_code == 400

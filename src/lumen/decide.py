@@ -198,7 +198,8 @@ def decide(
                             f"<= {th.face_neck_lightness_max}", ok))
         if not ok:
             return done("abstain", "the face is lit more strongly relative to the neck than in any "
-                                   "calibration session (a lamp near the face?): the probe is diluted")
+                                   "calibration session (a lamp near the face, or the neck region on a collar or in "
+                                  "shadow? sit back so bare neck shows below the chin): the probe is diluted")
 
     # 5. the three layers
     ratio = m.face.coherence / m.neck.coherence

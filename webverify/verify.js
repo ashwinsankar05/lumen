@@ -138,10 +138,50 @@
     v.requestVideoFrameCallback(tick);
   }
 
-  function updateStart() { $("start").disabled = !(preflightOk && $("ready").checked); }
+  // Neck check: once a second, the server finds the face and neck regions on a camera frame and says
+  // whether the neck region is on skin; the outlines are drawn over the preview (green face, red neck).
+  let neckOk = false, neckTimer = null;
+  function drawOutlines(r) {
+    const v = $("preview"), cv = $("overlay");
+    cv.width = cv.clientWidth; cv.height = cv.clientHeight;
+    const ctx = cv.getContext("2d");
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    if (!r || !r.outlines || !v.videoWidth) return;
+    const s = Math.min(cv.width / v.videoWidth, cv.height / v.videoHeight);
+    const ox = (cv.width - v.videoWidth * s) / 2, oy = (cv.height - v.videoHeight * s) / 2;
+    for (const [name, pts] of Object.entries(r.outlines)) {
+      ctx.strokeStyle = name === "neck" ? (r.ok ? "#6cc4a1" : "#e26d6d") : "#7fd37f";
+      ctx.lineWidth = 3; ctx.beginPath();
+      pts.forEach(([x, y], i) => { const px = ox + x * v.videoWidth * s, py = oy + y * v.videoHeight * s;
+        if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py); });
+      ctx.closePath(); ctx.stroke();
+    }
+  }
+  async function neckCheck() {
+    const v = $("preview"), status = $("neckcheck");
+    if ($("intro").hidden || !v.videoWidth) return;
+    const c = document.createElement("canvas"); c.width = v.videoWidth; c.height = v.videoHeight;
+    c.getContext("2d").drawImage(v, 0, 0);
+    const blob = await new Promise(res => c.toBlob(res, "image/jpeg", 0.85));
+    try {
+      const r = await (await fetch("/api/check-frame", { method: "POST", body: blob })).json();
+      neckOk = !!r.ok;
+      status.className = "status " + (r.ok ? "ok" : "bad");
+      status.textContent = r.hint || "Neck check failed.";
+      drawOutlines(r);
+    } catch (e) {
+      neckOk = false; status.className = "status bad"; status.textContent = "Neck check: cannot reach the server.";
+    }
+    updateStart();
+  }
+  function startNeckChecks() { if (!neckTimer) neckTimer = setInterval(neckCheck, 1000); neckCheck(); }
+  function stopNeckChecks() { clearInterval(neckTimer); neckTimer = null; drawOutlines(null); }
+
+  function updateStart() { $("start").disabled = !(preflightOk && neckOk && $("ready").checked); }
 
   async function run() {
     const camLabel = $("cam").selectedOptions[0] ? $("cam").selectedOptions[0].textContent : "?";
+    stopNeckChecks();
     // full screen first: Chrome allows it only straight after the click, before any await
     const fullscreen = document.documentElement.requestFullscreen().catch(() => {});
     // ?label=genuine marks a genuine calibration session; ?label=swap-on etc. tags test sessions
@@ -232,13 +272,14 @@
   $("ready").addEventListener("change", updateStart);
   $("cam").addEventListener("change", async () => { await openCamera($("cam").value); speedTried = false; exposureBright = null; preflight(); });
   $("start").addEventListener("click", () => { $("start").disabled = true; run().catch(e => showResult({ verdict: "error", reason: String(e) })); });
-  $("again").addEventListener("click", () => { $("result").hidden = true; $("intro").hidden = false; $("ready").checked = false; preflight(); });
+  $("again").addEventListener("click", () => { $("result").hidden = true; $("intro").hidden = false; $("ready").checked = false; preflight(); startNeckChecks(); });
 
   (async () => {
     try {
       const s = await openCamera();
       await listCameras(s.getVideoTracks()[0].getSettings().deviceId);
       preflight();
+      startNeckChecks();
     } catch (e) {
       $("preflight").className = "status bad";
       $("preflight").textContent = window.isSecureContext ? `No camera: ${e.message}` :

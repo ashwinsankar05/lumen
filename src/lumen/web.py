@@ -178,6 +178,37 @@ class Registry:
             return self._sessions.pop(sid, None)
 
 
+NECK_LIGHTNESS_DEFAULT_MAX = 1.35  # before calibration; genuine neck-on-skin sessions measured 0.99-1.29
+
+
+def check_neck(img, extractor, lock, th: Thresholds) -> dict:
+    """Face and neck outlines (fractions of the frame) and whether the neck region sits on skin."""
+    from lumen.regions import region_masks
+
+    h, w = img.shape[:2]
+    with lock:
+        extractor._smoothed = None  # one still frame: no landmark smoothing across calls
+        means = extractor.process(img)
+        lm = extractor.last_landmarks()
+    if not means or lm is None or "face" not in means or "neck" not in means:
+        return {"face": False, "ok": False, "hint": "No face found: face the camera, in good light."}
+    outlines = {}
+    for name, m in region_masks(lm, img.shape).items():
+        if name in ("face", "neck"):
+            contours, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            if contours:
+                c = max(contours, key=cv2.contourArea).reshape(-1, 2)
+                outlines[name] = [[round(float(x) / w, 4), round(float(y) / h, 4)] for x, y in c]
+    ratio = float(means["face"][0] / max(means["neck"][0], 1e-6))
+    limit = th.face_neck_lightness_max or NECK_LIGHTNESS_DEFAULT_MAX
+    ok = ratio <= limit
+    hint = (f"Neck OK (face/neck brightness {ratio:.2f}, limit {limit:.2f})." if ok else
+            f"The neck box (red) is on clothing or in shadow (face/neck brightness {ratio:.2f}, limit "
+            f"{limit:.2f}): sit a little further back, chin level, so bare neck shows below the chin, "
+            "or lower the collar.")
+    return {"face": True, "ok": ok, "ratio": round(ratio, 3), "limit": limit, "outlines": outlines, "hint": hint}
+
+
 def _result_payload(r, deep_line: str | None) -> dict:
     v = r.verdict
     f = r.features
@@ -293,6 +324,23 @@ def create_app(*, out_dir: str = "data/web/sessions", thresholds_path: str = "da
         if path is None:
             raise HTTPException(404, "no record for this session")
         return FileResponse(path, media_type="application/json", filename=f"{sid}.json")
+
+    neck_extractor = extractor_factory()
+    neck_lock = threading.Lock()
+
+    @app.post("/api/check-frame")
+    async def check_frame(request: Request):
+        """Pre-flight on one camera frame: where the face and neck regions fall, and whether the neck
+        region is on skin. Measured 2026-10-07: sitting closer put the neck region on a dark collar
+        (face/neck lightness 1.6-2.0 instead of ~1.0), and every session then abstained at the lamp
+        gate; the page shows these outlines so the subject can fix it before starting."""
+        data = await request.body()
+        if not 0 < len(data) <= MAX_FRAME_BYTES:
+            raise HTTPException(413, "frame empty or too large")
+        img = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
+        if img is None:
+            raise HTTPException(400, "not an image")
+        return check_neck(img, neck_extractor, neck_lock, load_thresholds(thresholds_path))
 
     @app.get("/api/info")
     def info():

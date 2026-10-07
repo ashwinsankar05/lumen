@@ -640,3 +640,29 @@ draw times, so a modified page could subtract a constant and hide the delay; clo
 timing the server can check (e.g. a server-anchored clock and arrival-time bounds). Not validated:
 other generators, faster GPUs, external or high-resolution webcams (whose genuine delay may be
 longer).
+
+## 2026-10-07 (morning) — Link sessions abstaining: the neck region on a collar
+
+Sessions on the attacker-laptop setup (its own calibration, lamp limit 1.465), the morning after
+the final rules:
+
+| Session | Camera | Face/neck lightness | Delay | Verdict |
+|---|---|---|---|---|
+| ff-swap-feb8 | OBS | 2.18 | 0.300 s | abstain (lamp gate) |
+| ff-swap-1202 | OBS | 1.95 | 0.400 s | abstain (lamp gate) |
+| ff-genuine-cbaa | OBS | 2.46 | 0.167 s | abstain (lamp gate) |
+| ff-genuine-1c03 | OBS | – | – | abstain (66 frames: stopped early) |
+| ff-genuine-7c13 | direct webcam | 1.70 | 0.133 s | abstain (lamp gate) |
+
+Diagnosis from the saved videos (regions drawn on a middle frame): the subject sat closer and lower
+than in the calibration sessions, so the neck region fell on a black T-shirt collar instead of bare
+skin. Neck L* 30–34 against face 55–61 (ratio 1.6–2.2), where the verified sessions the night
+before had neck on skin (ratio 0.99–1.02). The lamp gate abstained correctly: the neck reference
+was not skin. Chroma did not separate skin from this shirt; lightness did.
+
+Fix: a pre-flight neck check on the page (`/api/check-frame`): once a second the server finds the
+face and neck regions on a camera frame and the page draws them over the preview (green face, red
+neck), with Start enabled only when face/neck lightness is within the calibrated lamp limit. On
+real frames: the two verified sessions pass (1.02, 0.99), cbaa and 7c13 fail (2.19, 1.62). The
+lamp-gate message now also names a collar or shadow as a cause. The two swap sessions above
+would otherwise have reached L4 with delays of 0.300 and 0.400 s.
