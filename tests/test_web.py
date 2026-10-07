@@ -212,3 +212,14 @@ def test_each_session_is_judged_by_its_camera_paths_calibration(tmp_path):
     assert limits == [1.2, 1.9]
     assert all(any(n.startswith("calibration: ") for n in r["extra"]["notes"]) for r in saved.values())
     assert c.get("/api/info").json()["calibrations"][0]["name"] == "obs path"
+
+
+def test_a_visitor_through_a_cloudflare_tunnel_counts_as_another_laptop():
+    from types import SimpleNamespace
+
+    from lumen.web import _is_remote
+
+    local = SimpleNamespace(client=SimpleNamespace(host="127.0.0.1"), headers={})
+    tunnelled = SimpleNamespace(client=SimpleNamespace(host="127.0.0.1"), headers={"CF-Connecting-IP": "203.0.113.7"})
+    lan = SimpleNamespace(client=SimpleNamespace(host="10.164.128.150"), headers={})
+    assert (_is_remote(local), _is_remote(tunnelled), _is_remote(lan)) == (False, True, True)

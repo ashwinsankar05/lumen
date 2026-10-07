@@ -259,6 +259,10 @@ def pick_calibration(cals: list[Calibration], camera: str, remote: bool) -> Cali
 
 
 def _is_remote(request) -> bool:
+    """Another laptop? Behind a Cloudflare tunnel every request arrives from the local cloudflared
+    process, so the visitor is recognised by the header Cloudflare adds."""
+    if request.headers.get("CF-Connecting-IP"):
+        return True
     host = request.client.host if request.client else ""
     return host not in ("127.0.0.1", "::1", "localhost", "testclient")
 
