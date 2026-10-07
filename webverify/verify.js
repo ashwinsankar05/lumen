@@ -131,7 +131,15 @@
       }
       if (fps < 16) { status.className = "status bad"; status.textContent = `Camera too slow (${fps.toFixed(0)} fps, needs 16; ${speedNote}): add light on your face or pick another camera.`; }
       else if (exposureBright !== null && exposureBright < MIN_BRIGHT) { status.className = "status bad"; status.textContent = `Too dark to see a face (${speedNote}): add light on your face from the front, then reload the page.`; }
-      else if (live < 0.3) { status.className = "status bad"; status.textContent = "The camera picture looks frozen: check the camera source."; }
+      else if (live < 0.3) {
+        status.className = "status bad";
+        const cam = $("cam").selectedOptions[0] ? $("cam").selectedOptions[0].textContent : "";
+        status.textContent = /virtual|obs/i.test(cam)
+          ? "The virtual camera shows a still or black picture: check that the program feeding it shows a moving " +
+            "picture (e.g. FaceFusion lost the webcam to another tab: restart its webcam), that OBS shows it, and " +
+            "that 'Start Virtual Camera' is on; then reload this page."
+          : "The camera picture looks frozen: check the camera source (another tab or app may be using it).";
+      }
       else { status.className = "status ok"; status.textContent = `Camera OK: ${fps.toFixed(0)} fps, ${v.videoWidth}x${v.videoHeight}${speedTried ? ` (${speedNote})` : ""}.`; preflightOk = true; }
       updateStart();
     }
