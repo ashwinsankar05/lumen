@@ -666,3 +666,20 @@ neck), with Start enabled only when face/neck lightness is within the calibrated
 real frames: the two verified sessions pass (1.02, 0.99), cbaa and 7c13 fail (2.19, 1.62). The
 lamp-gate message now also names a collar or shadow as a cause. The two swap sessions above
 would otherwise have reached L4 with delays of 0.300 and 0.400 s.
+
+### Calibration per camera path (2026-10-07, morning)
+
+After the neck fix, ff-genuine-742d (attacker laptop, its own webcam, sitting back so the neck
+showed; face/neck lightness 0.89) abstained at the distance gate: eye distance 31.2 px against a
+minimum of 33.6 px from the OBS-path calibration, where window-captured frames show the face
+larger. Re-judging every link session with a webcam-path calibration instead made most OBS
+sessions abstain, including 3 of 4 swaps. So each camera path gets its own calibration and the
+server picks one per session (`data/web/calibrations.json`, first matching rule by camera label
+and by this/another laptop; recorded in each record's notes).
+
+The direct-webcam sessions on the attacker laptop (c5a5, c8a3, 4339, 742d) are identified by their
+pages drawing 5400 probe frames in 90 s (a 60 Hz display; the dev laptop's is 144 Hz, 12 959
+frames). These four calibrate the attacker laptop's webcam path (`--calibrate --sessions`): cheek
+contrast >= +0.4972, face/neck lightness <= 1.1289, eye distance >= 26.49 px; deep lean >=
++0.5279, relief >= 0.1353. They are its calibration sessions, so they say nothing about held-out
+performance; the next webcam session on that laptop is the first held-out one.
