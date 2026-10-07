@@ -171,3 +171,44 @@ def test_neck_check_returns_outlines_and_flags_a_dark_neck(client):
     r2 = client.post("/api/check-frame", content=cv2.imencode(".jpg", dark)[1].tobytes()).json()
     assert r2["face"] and not r2["ok"] and "clothing" in r2["hint"]
     assert client.post("/api/check-frame", content=b"not a jpeg").status_code == 400
+
+
+def test_pick_calibration_first_matching_rule_wins():
+    from lumen.web import Calibration, pick_calibration
+
+    cals = [Calibration("obs", "a.json", "da.json", camera="OBS", remote=True),
+            Calibration("remote webcam", "b.json", "db.json", remote=True),
+            Calibration("this laptop", "c.json", "dc.json")]
+    assert pick_calibration(cals, "OBS Virtual Camera", remote=True).name == "obs"
+    assert pick_calibration(cals, "obs virtual camera", remote=True).name == "obs"       # case-insensitive
+    assert pick_calibration(cals, "Integrated Camera (5986:11ad)", remote=True).name == "remote webcam"
+    assert pick_calibration(cals, "OBS Virtual Camera", remote=False).name == "this laptop"
+    assert pick_calibration(cals, "", remote=False).name == "this laptop"
+
+
+def test_each_session_is_judged_by_its_camera_paths_calibration(tmp_path):
+    """Every calibration carries L4, so a camera label can only choose between genuine calibrations."""
+    import json as _json
+
+    from lumen.decide import Thresholds
+    from lumen.web import Calibration
+
+    for name, limit in (("obs", 1.9), ("cam", 1.2)):
+        Thresholds(face_neck_lightness_max=limit, pipeline_lag_max_s=0.25).save(tmp_path / f"{name}.json")
+    cals = [Calibration("obs path", str(tmp_path / "obs.json"), str(tmp_path / "d1.json"), camera="OBS"),
+            Calibration("webcam", str(tmp_path / "cam.json"), str(tmp_path / "d2.json"))]
+    app = create_app(out_dir=str(tmp_path / "s"), key_path=str(tmp_path / "k.pem"), duration_s=30.0,
+                     save_video=False, extractor_factory=lambda: RegionExtractor(FixedDetector()), calibrations=cals)
+    c = TestClient(app)
+    obs = c.post("/api/sessions", json={"camera": "OBS Virtual Camera"}).json()
+    cam = c.post("/api/sessions", json={"camera": "Integrated Camera"}).json()
+    assert (obs["calibration"], cam["calibration"]) == ("obs path", "webcam")
+    for p in (obs, cam):
+        rec = c.post(f"/api/sessions/{p['session_id']}/finish", json={"t0": 0.0, "drawn_t": [0.0, 0.1, 0.2]})
+        assert rec.status_code == 200
+    saved = {d.name: _json.loads((d / "record.json").read_text()) for d in (tmp_path / "s").iterdir()
+             if (d / "record.json").exists()}
+    limits = sorted(r["thresholds"]["face_neck_lightness_max"] for r in saved.values())
+    assert limits == [1.2, 1.9]
+    assert all(any(n.startswith("calibration: ") for n in r["extra"]["notes"]) for r in saved.values())
+    assert c.get("/api/info").json()["calibrations"][0]["name"] == "obs path"

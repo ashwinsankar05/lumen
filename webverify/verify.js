@@ -164,7 +164,9 @@
     c.getContext("2d").drawImage(v, 0, 0);
     const blob = await new Promise(res => c.toBlob(res, "image/jpeg", 0.85));
     try {
-      const r = await (await fetch("/api/check-frame", { method: "POST", body: blob })).json();
+      const cam = $("cam").selectedOptions[0] ? $("cam").selectedOptions[0].textContent : "";
+      const r = await (await fetch("/api/check-frame", { method: "POST", body: blob,
+                                                         headers: { "X-Camera": encodeURIComponent(cam) } })).json();
       neckOk = !!r.ok;
       status.className = "status " + (r.ok ? "ok" : "bad");
       status.textContent = r.hint || "Neck check failed.";
@@ -187,7 +189,7 @@
     // ?label=genuine marks a genuine calibration session; ?label=swap-on etc. tags test sessions
     const tag = new URLSearchParams(location.search).get("label");
     const res = await fetch("/api/sessions", { method: "POST", headers: { "Content-Type": "application/json" },
-                                                body: JSON.stringify({ label: tag ? `web-${tag}` : "web" }) });
+                                                body: JSON.stringify({ label: tag ? `web-${tag}` : "web", camera: camLabel }) });
     if (!res.ok) {
       if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
       alert(`Could not start: ${(await res.json()).detail || res.status}`); return;

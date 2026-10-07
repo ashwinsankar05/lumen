@@ -23,6 +23,7 @@ import queue
 import socket
 import threading
 import time
+from dataclasses import dataclass
 from pathlib import Path
 
 import cv2
@@ -60,6 +61,8 @@ class WebSession(Session):
         self._worker = threading.Thread(target=self._work, name=f"lumen-web-{self.id}", daemon=True)
         self._worker.start()
         self.state = "running"
+        self.calibration: Calibration | None = None
+        self.extra_notes: list[str] = []
 
     def page_params(self) -> dict:
         """What the page needs to draw the probe: each sequence's frequencies, phases and scale."""
@@ -138,6 +141,7 @@ class WebSession(Session):
         fps = float((len(ts) - 1) / (ts.max() - ts.min())) if len(ts) > 1 else 0.0
         notes = [f"browser camera: {client.get('camera', '?')}; {self.received} frames received, "
                  f"{self.undecodable} undecodable; page drew {len(self.log)} probe frames"]
+        notes += self.extra_notes
         if reordered:
             notes.append("frames arrived out of order (parallel uploads) and were put in capture-time order")
         if client.get("dropped"):
@@ -224,10 +228,47 @@ def _result_payload(r, deep_line: str | None) -> dict:
     }
 
 
+@dataclass(frozen=True)
+class Calibration:
+    """Which calibration judges a session: one per camera path, because calibration does not transfer
+    between cameras (measured 2026-10-07: OBS window-capture frames show faces larger and re-timed,
+    so webcam limits made OBS sessions abstain and OBS limits made webcam sessions abstain)."""
+    name: str
+    thresholds: str
+    deep: str
+    camera: str = ""            # matches when the camera label contains this (case-insensitive); "" = any
+    remote: bool | None = None  # True: another laptop; False: this laptop; None: either
+
+
+def load_calibrations(path: str | Path) -> list[Calibration]:
+    import json
+
+    return [Calibration(**c) for c in json.loads(Path(path).read_text())]
+
+
+def pick_calibration(cals: list[Calibration], camera: str, remote: bool) -> Calibration:
+    """The first rule that matches. A camera label is chosen by the subject's browser, so it can only
+    select among genuine calibrations, all with L4; it cannot switch any check off."""
+    for c in cals:
+        if c.camera and c.camera.lower() not in (camera or "").lower():
+            continue
+        if c.remote is not None and c.remote != remote:
+            continue
+        return c
+    return cals[-1]
+
+
+def _is_remote(request) -> bool:
+    host = request.client.host if request.client else ""
+    return host not in ("127.0.0.1", "::1", "localhost", "testclient")
+
+
 def create_app(*, out_dir: str = "data/web/sessions", thresholds_path: str = "data/thresholds-web.json",
                deep_thresholds_path: str = "data/web/deep_thresholds.json",
                key_path: str = "data/keys/lumen_ed25519.pem", duration_s: float = 90.0,
-               amplitude: float = 34.0, save_video: bool = True, extractor_factory=RegionExtractor):
+               amplitude: float = 34.0, save_video: bool = True, extractor_factory=RegionExtractor,
+               calibrations: list[Calibration] | None = None):
+    cals = calibrations or [Calibration("default", thresholds_path, deep_thresholds_path)]
     app = FastAPI(title="LUMEN verification link")
     registry = Registry()
     finished: dict[str, str] = {}  # session id -> record path
@@ -253,23 +294,26 @@ def create_app(*, out_dir: str = "data/web/sessions", thresholds_path: str = "da
     async def start(request: Request):
         body = await request.json() if await request.body() else {}
         label = "".join(ch for ch in str(body.get("label", "web"))[:40] if ch.isalnum() or ch in "-_") or "web"
+        cal = pick_calibration(cals, str(body.get("camera", ""))[:200], _is_remote(request))
         cfg = SessionConfig(source="browser", duration_s=duration_s, amplitude=amplitude, label=label,
                             lock_camera=False, save_video=save_video, out_dir=out_dir,
-                            thresholds_path=thresholds_path, key_path=key_path, max_lag_s=1.0)
+                            thresholds_path=cal.thresholds, key_path=key_path, max_lag_s=1.0)
         # Near the gamut edge (amplitude 34 at L* 70) some codes' colour peaks leave the sRGB gamut and
         # the probe refuses them rather than clip; draw a fresh random code instead.
         for attempt in range(8):
             try:
-                s = WebSession(cfg, thresholds=load_thresholds(thresholds_path), extractor_factory=extractor_factory)
+                s = WebSession(cfg, thresholds=load_thresholds(cal.thresholds), extractor_factory=extractor_factory)
                 break
             except ValueError:
                 if attempt == 7:
                     raise HTTPException(500, "could not draw an in-gamut probe; lower the amplitude") from None
+        s.calibration = cal
+        s.extra_notes.append(f"calibration: {cal.name} ({cal.thresholds}; deep check {cal.deep})")
         try:
             registry.add(s)
         except RuntimeError as exc:
             raise HTTPException(429, str(exc)) from exc
-        return s.page_params()
+        return {**s.page_params(), "calibration": cal.name}
 
     @app.post("/api/sessions/{sid}/frame", status_code=204)
     async def frame(sid: str, request: Request):
@@ -306,7 +350,8 @@ def create_app(*, out_dir: str = "data/web/sessions", thresholds_path: str = "da
 
             from lumen.deepcheck import judge_temporal
 
-            th = DeepThresholds.load(deep_thresholds_path) if Path(deep_thresholds_path).exists() else None
+            deep_path = s.calibration.deep
+            th = DeepThresholds.load(deep_path) if Path(deep_path).exists() else None
             try:
                 m = deep_measures(load_record(r.record_path))
                 deep_line = describe(m, th)
@@ -340,13 +385,17 @@ def create_app(*, out_dir: str = "data/web/sessions", thresholds_path: str = "da
         img = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
         if img is None:
             raise HTTPException(400, "not an image")
-        return check_neck(img, neck_extractor, neck_lock, load_thresholds(thresholds_path))
+        cal = pick_calibration(cals, request.headers.get("X-Camera", "")[:200], _is_remote(request))
+        return {**check_neck(img, neck_extractor, neck_lock, load_thresholds(cal.thresholds)),
+                "calibration": cal.name}
 
     @app.get("/api/info")
     def info():
-        th = load_thresholds(thresholds_path)
-        return {"calibrated": not th.provisional, "thresholds": thresholds_path,
-                "deep_calibrated": Path(deep_thresholds_path).exists(), "duration_s": duration_s}
+        first = cals[0]
+        return {"calibrated": not load_thresholds(first.thresholds).provisional, "thresholds": first.thresholds,
+                "deep_calibrated": Path(first.deep).exists(), "duration_s": duration_s,
+                "calibrations": [{"name": c.name, "camera": c.camera, "remote": c.remote,
+                                  "calibrated": not load_thresholds(c.thresholds).provisional} for c in cals]}
 
     return app
 
@@ -441,7 +490,8 @@ def with_pipeline_delay(th: Thresholds) -> Thresholds:
 
 def calibrate_web(sessions_dir: str | Path = "data/web/sessions", n: int = 3,
                   thresholds_path: str = "data/thresholds-web.json",
-                  deep_path: str = "data/web/deep_thresholds.json", tag: str = "genuine") -> list[str]:
+                  deep_path: str = "data/web/deep_thresholds.json", tag: str = "genuine",
+                  sessions: list[str] | None = None) -> list[str]:
     """Calibrate L1-L3 and the deep check from the n newest web sessions opened with ?label=<tag>.
 
     The tag must name GENUINE sessions only (e.g. genuine, or ff-genuine for a face-swap path with
@@ -453,12 +503,23 @@ def calibrate_web(sessions_dir: str | Path = "data/web/sessions", n: int = 3,
     from lumen.record import load_record
     from lumen.session import reanalyse
 
-    if "genuine" not in tag:
-        raise SystemExit("calibrate only from genuine sessions: the tag must contain 'genuine'")
-    found = sorted((d for d in Path(sessions_dir).glob(f"*-web-{tag}-*") if (d / "record.json").exists()),
-                   reverse=True)[:n]
-    if len(found) < n:
-        raise SystemExit(f"need {n} sessions opened with ?label={tag}, found {len(found)}")
+    if sessions:
+        # explicit genuine sessions, e.g. one camera path's sessions out of a mixed tag
+        found = [Path(sessions_dir) / s for s in sessions]
+        if any("genuine" not in d.name or not (d / "record.json").exists() for d in found):
+            raise SystemExit("every session must exist and be a genuine one (name containing 'genuine')")
+        if len(found) < 3:
+            raise SystemExit("calibrate from at least 3 genuine sessions")
+        cameras = {load_record(d / "record.json")["capture"]["source"] for d in found}
+        if len(cameras) > 1:
+            raise SystemExit(f"one camera path per calibration; these sessions used {sorted(cameras)}")
+    else:
+        if "genuine" not in tag:
+            raise SystemExit("calibrate only from genuine sessions: the tag must contain 'genuine'")
+        found = sorted((d for d in Path(sessions_dir).glob(f"*-web-{tag}-*") if (d / "record.json").exists()),
+                       reverse=True)[:n]
+        if len(found) < n:
+            raise SystemExit(f"need {n} sessions opened with ?label={tag}, found {len(found)}")
     recs = [time_ordered(load_record(d / "record.json")) for d in sorted(found)]
     if any(r.get("capture", {}).get("simulated") for r in recs):
         raise SystemExit("refusing to calibrate from simulated sessions")
@@ -524,21 +585,34 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--calibrate", action="store_true",
                    help="calibrate L1-L3 and the deep check from the 3 newest ?label=<tag> sessions, then exit")
     p.add_argument("--tag", default="genuine", help="with --calibrate: the genuine tag (e.g. ff-genuine)")
+    p.add_argument("--sessions", nargs="+", help="with --calibrate: these genuine session folders instead "
+                                                 "(one camera path)")
+    p.add_argument("--sessions-dir", default="data/web/sessions")
+    p.add_argument("--calibrations", default="data/web/calibrations.json",
+                   help="rules picking a calibration per camera path (JSON list, first match wins); "
+                        "if the file is missing, --thresholds/--deep-thresholds judge every session")
     p.add_argument("--report", metavar="MATCH", nargs="?", const="",
                    help="re-judge saved web sessions (names containing MATCH) with the calibration, then exit")
     a = p.parse_args(argv)
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", line_buffering=True)
     if a.calibrate:
-        for line in calibrate_web(thresholds_path=a.thresholds, deep_path=a.deep_thresholds, tag=a.tag):
+        for line in calibrate_web(a.sessions_dir, thresholds_path=a.thresholds, deep_path=a.deep_thresholds,
+                                  tag=a.tag, sessions=a.sessions):
             print(line)
         return 0
     if a.report is not None:
-        print(report_web(a.report, thresholds_path=a.thresholds, deep_path=a.deep_thresholds))
+        print(report_web(a.report, a.sessions_dir, thresholds_path=a.thresholds, deep_path=a.deep_thresholds))
         return 0
 
+    cals = load_calibrations(a.calibrations) if Path(a.calibrations).exists() else None
+    if cals:
+        print(f"Calibrations ({a.calibrations}), first match wins:")
+        for c in cals:
+            where = "another laptop" if c.remote else "this laptop" if c.remote is False else "any laptop"
+            print(f"   {c.name}: camera contains '{c.camera or '*'}', {where} -> {c.thresholds}")
     app = create_app(thresholds_path=a.thresholds, deep_thresholds_path=a.deep_thresholds,
-                     duration_s=a.duration, amplitude=a.amplitude, save_video=not a.no_video)
+                     duration_s=a.duration, amplitude=a.amplitude, save_video=not a.no_video, calibrations=cals)
     if a.http:
         print(f"LUMEN verification link: http://localhost:{a.port}  (this laptop only)")
         serve_forever(app, host="127.0.0.1", port=a.port)
